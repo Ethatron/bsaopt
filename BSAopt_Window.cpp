@@ -36,7 +36,7 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	
 	BOCompression = new wxMenu();
 	wxMenuItem* BOZ0;
-	BOZ0 = new wxMenuItem( BOCompression, wxID_BOZ0, wxString( wxT("0") ) , wxEmptyString, wxITEM_RADIO );
+	BOZ0 = new wxMenuItem( BOCompression, wxID_BOZ0, wxString( wxT("0 (off)") ) , wxEmptyString, wxITEM_RADIO );
 	BOCompression->Append( BOZ0 );
 	
 	wxMenuItem* BOZ1;
@@ -154,6 +154,8 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	bSizer36->Add( bSizer32, 0, wxEXPAND, 5 );
 	
 	BOArchiveTree = new wxTreeCtrl( BOPanelContents, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTR_DEFAULT_STYLE|wxTR_HIDE_ROOT|wxTR_SINGLE );
+	BOArchiveTree->SetToolTip( wxT("The directories present under the given source") );
+	
 	bSizer36->Add( BOArchiveTree, 1, wxALL|wxEXPAND, 5 );
 	
 	BOPanelContents->SetSizer( bSizer36 );
@@ -182,13 +184,15 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	bSizer39 = new wxBoxSizer( wxHORIZONTAL );
 	
 	BOPluginToolbar = new wxToolBar( m_panel4, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTB_HORIZONTAL ); 
-	BOPluginToolbar->AddTool( wxID_RESET, wxT("Reset"), wxBitmap( wxT("#112"), wxBITMAP_TYPE_RESOURCE ), wxNullBitmap, wxITEM_NORMAL, wxT("Selects the plugins from O's load-order"), wxEmptyString, NULL ); 
-	BOPluginToolbar->AddTool( wxID_CLEAR, wxT("tool"), wxBitmap( wxT("#110"), wxBITMAP_TYPE_RESOURCE ), wxNullBitmap, wxITEM_NORMAL, wxT("Clears the selection"), wxEmptyString, NULL ); 
+	BOPluginToolbar->AddTool( wxID_RESET, wxT("Reset"), wxBitmap( wxT("#112"), wxBITMAP_TYPE_RESOURCE ), wxNullBitmap, wxITEM_NORMAL, wxT("Selects all visible files"), wxEmptyString, NULL ); 
+	BOPluginToolbar->AddTool( wxID_CLEAR, wxT("tool"), wxBitmap( wxT("#110"), wxBITMAP_TYPE_RESOURCE ), wxNullBitmap, wxITEM_NORMAL, wxT("Clears all visible files from the selection"), wxEmptyString, NULL ); 
 	BOPluginToolbar->Realize();
 	
 	bSizer39->Add( BOPluginToolbar, 0, wxEXPAND, 5 );
 	
 	BORecursive = new wxCheckBox( m_panel4, wxID_ANY, wxT("Show recursive"), wxDefaultPosition, wxDefaultSize, 0 );
+	BORecursive->SetToolTip( wxT("Show files in sub-directories as well") );
+	
 	bSizer39->Add( BORecursive, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 	
 	bSizer13->Add( bSizer39, 0, wxEXPAND, 5 );
@@ -196,7 +200,7 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	wxString BOArchiveListChoices[] = { wxT("a.esp"), wxT("b.esp") };
 	int BOArchiveListNChoices = sizeof( BOArchiveListChoices ) / sizeof( wxString );
 	BOArchiveList = new wxCheckListBox( m_panel4, wxID_ANY, wxDefaultPosition, wxDefaultSize, BOArchiveListNChoices, BOArchiveListChoices, 0 );
-	BOArchiveList->SetToolTip( wxT("The plug-ins which should be used to extract the height-field") );
+	BOArchiveList->SetToolTip( wxT("The files in the currently selected directory") );
 	
 	bSizer13->Add( BOArchiveList, 1, wxALL|wxEXPAND, 5 );
 	
@@ -222,7 +226,7 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	
 	BOConvert = new wxButton( m_panel4, wxID_ANY, wxT("Convert"), wxDefaultPosition, wxDefaultSize, 0 );
 	BOConvert->Enable( false );
-	BOConvert->SetToolTip( wxT("Extract the height-data to the given file") );
+	BOConvert->SetToolTip( wxT("Copy/Convert all files from the source into the destination") );
 	
 	bSizer42->Add( BOConvert, 0, wxALL, 5 );
 	

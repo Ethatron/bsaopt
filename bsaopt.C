@@ -676,8 +676,8 @@ private:
 	  if (isext(fle, "psd"))
 	    docopy = false;
 
-	  if (!docopy)
-	    fprintf(stderr, "filtered \"%s\"\n", fle);
+//	  if (!docopy)
+//	    fprintf(stderr, "filtered \"%s\"\n", fle);
 	}
 
 //	nfo->selected = newio;
@@ -1172,6 +1172,10 @@ public:
 	bool docopy = true;
 	bool iszero = !iinfo.io_size;
 
+	/* skip unselected ones (iactive is altered by the selection) */
+	if (!fdirectory[lcname].selected)
+	  return;
+
 	/* strip trailing slash */
 	if (!(fle = strrchr(inname, '/')))
 	  if (!(fle = strrchr(inname, '\\')))
@@ -1189,10 +1193,6 @@ public:
 	  prog->SetProgress(lcname, iprogres++);
 	else
 	  prog->SetProgress(lcname, iprogres++);
-
-	/* skip unselected ones */
-	if (!fdirectory[lcname].selected)
-	  return;
 
 	/* if there is no destination, clone the source */
 	if (ouname && !iostat(ouname, &oinfo)) {
@@ -1225,7 +1225,26 @@ public:
 //	    fprintf(stderr, "copying \"%s\"\n", fle);
 
 	    /* TODO: nowait asynchronous */
-	    iocp(inname, ouname);
+	    while (1) {
+	      try {
+		iocp(inname, ouname);
+	      }
+	      catch(exception &e) {
+		if (strcmp(e.what(), "ExitThread")) {
+		  char buf[256]; sprintf(buf, "Failed to copy file \"%s\". Retry?", lcname);
+		  wxMessageDialog d(this, buf, "BSAopt error", wxYES_NO | wxCANCEL | wxCENTRE);
+		  int res = d.ShowModal();
+		  if (res == wxID_OK)
+		    continue;
+		  if (res == wxID_NO)
+		    break;
+		}
+
+		throw runtime_error("ExitThread");
+	      }
+
+	      break;
+	    };
 
 	    /* progress */
 	    processedinbytes += iinfo.io_size;
