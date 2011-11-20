@@ -227,9 +227,14 @@ public:
 
 // ----------------------------------------------------------------------------
 class BSAoptPrg; class BSAoptPrg *prg;
-class BSAoptPrg : public wxProgress
-{
+class BSAoptPrg : public wxProgress {
+
+private:
+  const char *lastpa;
+  const char *lastpb;
+
 public:
+  /* all executed by Async-thread */
   void StartProgress(int rng) {
     Wait();
 
@@ -277,6 +282,16 @@ public:
     BOEfficiency->SetValue(rng);
   }
 
+  void PollProgress() {
+    Wait();
+  }
+
+private:
+  bool paused, quit;
+  time_t tinit, tlast, tnow;
+
+public:
+  /* all executed by Progress-thread */
   virtual void PauseProgress(wxCommandEvent& event) {
     if (!paused) {
       Block();
@@ -292,28 +307,15 @@ public:
     }
   }
 
-  void PollProgress() {
-    Wait();
-  }
-
   virtual void AbortProgress(wxCloseEvent& event) {
+    if (event.CanVeto())
+      event.Veto();
+
     Abort();
-
-    /* this would prevent EndModal() to work */
-//  Close();
-
-    event.Skip();
-    event.StopPropagation();
   }
 
   virtual void AbortProgress(wxCommandEvent& event) {
     Abort();
-
-    /* this would prevent EndModal() to work */
-//  Close();
-
-    event.Skip();
-    event.StopPropagation();
   }
 
   virtual void IdleProgress(wxIdleEvent& event) {
@@ -349,25 +351,22 @@ public:
   }
 
 private:
-  const char *lastpa;
-  const char *lastpb;
-  HANDLE evt, tve, end;
-  bool paused, quit;
-  time_t tinit, tlast, tnow;
+  HANDLE evt, end;
+  HANDLE async;
 
+  /* called from Progress-thread */
   void Abort() {
     quit = true;
-    WaitForSingleObject(tve, 5000 /*INFINITE*/);
-    SetEvent(end);
+    SetEvent(evt);
   }
 
+  /* called from Async-thread */
   void Wait() {
     WaitForSingleObject(evt, INFINITE);
-    if (quit) {
-      SetEvent(tve);
-//    ExitThread(0);
+
+    /* signal abortion (inside Async-thread) */
+    if (quit)
       throw runtime_error("ExitThread");
-    }
   }
 
   void Block() {
@@ -379,16 +378,61 @@ private:
   }
 
 public:
-  void Leave(int retCode) {
-    SetEvent(tve);
-    if (quit)
-      WaitForSingleObject(end, INFINITE);
+  wxEventType evtLeave;
+  int idLeave;
+  int retCode;
 
-    Sleep(500);
+  class LeaveEvent: public wxCommandEvent {
+public:
+    LeaveEvent(int id, const wxEventType& event_type) : wxCommandEvent(event_type, id) {}
+    LeaveEvent(const LeaveEvent& event) : wxCommandEvent(event) {}
+
+    wxEvent* Clone() const { return new LeaveEvent(*this); }
+  };
+
+  typedef void (wxEvtHandler::*LeaveEventFunction)(LeaveEvent &);
+  
+  /* called from outside-thread */
+  int Enter(LPTHREAD_START_ROUTINE routine) {
+    if ((async = CreateThread(NULL, 0, routine, this, 0, NULL)) == INVALID_HANDLE_VALUE)
+      return 0;
+    SetThreadPriority(async, THREAD_PRIORITY_BELOW_NORMAL);
+
+    return ShowModal();
+  }
+
+  /* called from Async-thread */
+  void Leave(int rc) {
+    retCode = rc;
+
+    LeaveEvent event(idLeave, evtLeave);
+    wxPostEvent(this, event);
+
+    /* wait for the progress-dialog to recognize our message */
+    WaitForSingleObject(end, INFINITE);
+  }
+
+  /* called from Progress-thread */
+  void Leave(LeaveEvent &) {
+    /* signal that we recognize the message */
+    SetEvent(end);
+
+    WaitForSingleObject(async, INFINITE);
+    CloseHandle(async);
+
     EndModal(retCode);
   }
 
   BSAoptPrg::BSAoptPrg(wxWindow *parent) : wxProgress(parent) {
+    evtLeave = wxNewEventType();
+    idLeave = wxNewId();
+
+    /* Connect to event handler that will make us close */
+    Connect(wxID_ANY, evtLeave,
+      (wxObjectEventFunction)(wxEventFunction)(wxCommandEventFunction)wxStaticCastEvent(LeaveEventFunction, &BSAoptPrg::Leave),
+      NULL,
+      this);
+
     tinit = time(NULL);
     paused = false;
     quit = false;
@@ -408,20 +452,12 @@ public:
       NULL		  // unnamed mutex
     );
 
-    tve = CreateEvent(
-      NULL,		  // default security attributes
-      TRUE,		  // manual reset
-      FALSE,		  // initially not set
-      NULL		  // unnamed mutex
-    );
-
     SetSize(600, 265);
   }
 
   BSAoptPrg::~BSAoptPrg() {
     CloseHandle(evt);
     CloseHandle(end);
-    CloseHandle(tve);
   }
 };
 
@@ -1047,14 +1083,8 @@ private:
     BOStatusBar->SetStatusText(wxT("Running ..."), 0);
     wxBusyCursor wait;
     prog = new BSAoptPrg(this);
-    HANDLE th;
-    if ((th = CreateThread(NULL, 0, ::ConversionStart, prog, 0, NULL)) == INVALID_HANDLE_VALUE)
-      return;
-    SetThreadPriority(th, THREAD_PRIORITY_BELOW_NORMAL);
-    int ret = prog->ShowModal();
-    WaitForSingleObject(th, 500);
+    int ret = prog->Enter(::ConversionStart);
     delete prog;
-    CloseHandle(th);
 
     /* wait for the asynchronous processes ... */
     ioflush();
