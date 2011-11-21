@@ -59,6 +59,7 @@
 #define wxID_SKIPN 1018
 #define wxID_SKIPH 1019
 #define wxID_SKIPC 1020
+#define wxID_SKIPB 1021
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Class wxBSAopt
@@ -100,6 +101,7 @@ class wxBSAopt : public wxFrame
 		virtual void ChangeSkipNewer( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeSkipHidden( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeSkipHash( wxCommandEvent& event ) { event.Skip(); }
+		virtual void ChangeSkipBroken( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangePluginDir( wxFileDirPickerEvent& event ) { event.Skip(); }
 		virtual void TypedIn( wxCommandEvent& event ) { event.Skip(); }
 		virtual void BrowseIn( wxCommandEvent& event ) { event.Skip(); }

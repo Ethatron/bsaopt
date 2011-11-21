@@ -113,6 +113,7 @@ BOOL CreateDirectoryRecursive(const char *pathname) {
 bool skipexisting = false;
 bool skipnewer = false;
 bool skiphashcheck = false;
+bool skipbroken = false;
 bool processhidden = false;
 bool verbose = false;
 bool dropextras = true;
@@ -884,6 +885,10 @@ private:
     RegSetKeyValue(Settings, "Skip", "Hash", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
   }
 
+  void ChangeSkipBroken(wxCommandEvent& event) {
+    RegSetKeyValue(Settings, "Skip", "Broken", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
+  }
+
   void ChangeRecursion(wxCommandEvent& event) {
     RegSetKeyValue(Settings, NULL, "Show Recursive", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
 
@@ -909,6 +914,7 @@ private:
     skipexisting  = BOSettings->FindChildItem(wxID_SKIPE, NULL)->IsChecked();
     skipnewer     = BOSettings->FindChildItem(wxID_SKIPN, NULL)->IsChecked();
     skiphashcheck = BOSettings->FindChildItem(wxID_SKIPC, NULL)->IsChecked();
+    skipbroken    = BOSettings->FindChildItem(wxID_SKIPB, NULL)->IsChecked();
     processhidden = BOSettings->FindChildItem(wxID_SKIPH, NULL)->IsChecked();
 
     BOArchiveList->Clear();
@@ -1261,10 +1267,13 @@ public:
 	      }
 	      catch(exception &e) {
 		if (strcmp(e.what(), "ExitThread")) {
+		  if (skipbroken)
+		    break;
+
 		  char buf[256]; sprintf(buf, "Failed to copy file \"%s\". Retry?", lcname);
 		  wxMessageDialog d(this, buf, "BSAopt error", wxYES_NO | wxCANCEL | wxCENTRE);
 		  int res = d.ShowModal();
-		  if (res == wxID_OK)
+		  if (res == wxID_YES)
 		    continue;
 		  if (res == wxID_NO)
 		    break;
@@ -1431,6 +1440,8 @@ public:
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPH, NULL)->Check(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, "Skip", "Hash", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPC, NULL)->Check(TS[0] == '1'); TSL = 1023;
+    TS[0] = 0; RegGetValue(Settings, "Skip", "Broken", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPB, NULL)->Check(TS[0] == '1'); TSL = 1023;
 
     filter.Compile(BOFilter->GetValue());
 

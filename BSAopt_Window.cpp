@@ -116,6 +116,10 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	BOSkipHash = new wxMenuItem( BOSettings, wxID_SKIPC, wxString( wxT("Skip hash-check") ) , wxEmptyString, wxITEM_CHECK );
 	BOSettings->Append( BOSkipHash );
 	
+	wxMenuItem* BOSkipBroken;
+	BOSkipBroken = new wxMenuItem( BOSettings, wxID_SKIPB, wxString( wxT("Skip broken files") ) , wxEmptyString, wxITEM_CHECK );
+	BOSettings->Append( BOSkipBroken );
+	
 	BOMenuBar->Append( BOSettings, wxT("Settings") ); 
 	
 	this->SetMenuBar( BOMenuBar );
@@ -261,6 +265,7 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	this->Connect( BOSkipNewer->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipNewer ) );
 	this->Connect( BOSkipHidden->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipHidden ) );
 	this->Connect( BOSkipHash->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipHash ) );
+	this->Connect( BOSkipBroken->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipBroken ) );
 	BOInput->Connect( wxEVT_COMMAND_DIRPICKER_CHANGED, wxFileDirPickerEventHandler( wxBSAopt::ChangePluginDir ), NULL, this );
 	BOInText->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedIn ), NULL, this );
 	BOInBrowse->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseIn ), NULL, this );
@@ -288,6 +293,7 @@ wxBSAopt::~wxBSAopt()
 	this->Disconnect( wxID_SKIPN, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipNewer ) );
 	this->Disconnect( wxID_SKIPH, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipHidden ) );
 	this->Disconnect( wxID_SKIPC, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipHash ) );
+	this->Disconnect( wxID_SKIPB, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipBroken ) );
 	BOInput->Disconnect( wxEVT_COMMAND_DIRPICKER_CHANGED, wxFileDirPickerEventHandler( wxBSAopt::ChangePluginDir ), NULL, this );
 	BOInText->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedIn ), NULL, this );
 	BOInBrowse->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseIn ), NULL, this );
