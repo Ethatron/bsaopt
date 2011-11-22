@@ -1187,7 +1187,7 @@ public:
 
 	  if ((res = fseek(ibsa, file->iinfo.offset, SEEK_SET)))
 	    return 0;
-	  if ((ret = fread(&sze, 1, sizeof(sze), ibsa)) != sizeof(sze))
+	  if ((ret = fread(&sze, 1, sizeof(long), ibsa)) != sizeof(long))
 	    return 0;
 	}
       }

@@ -921,6 +921,7 @@ private:
     if (!basedir[0])
       return;
 
+    BOStatusBar->SetStatusText(wxT("Refreshing file-list ..."), 0);
     ldirectory.clear();
     iomap::iterator walk = fdirectory.begin();
     while (walk != fdirectory.end()) {
@@ -977,6 +978,8 @@ private:
 
       walk++;
     }
+
+    BOStatusBar->SetStatusText(wxT("Ready"), 0);
   }
 
   void ChangeSelectedFiles(wxCommandEvent& event) {
@@ -1397,12 +1400,24 @@ public:
     }
     
     char TS[1024]; DWORD TSL = 1023;
+    TS[0] = 0; RegGetValue(Settings, NULL, "Filter", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOFilter->SetValue(TS); TSL = 1023;
+
+    /* . -> \.
+     * * -> .*
+     */
+    wxString spat = BOFilter->GetValue();
+    wxString wildcard = spat;
+    wildcard.Replace(".", "\\.", true);
+    wildcard.Replace("*", ".*", true);
+
+    if (!filter.Compile(wildcard))
+      filter.Compile("");
+
     TS[0] = 0; RegGetValue(Settings, NULL, "Input Location", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOInText->SetValue(TS); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, NULL, "Output Location", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOOutText->SetValue(TS); TSL = 1023;
-    TS[0] = 0; RegGetValue(Settings, NULL, "Filter", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOFilter->SetValue(TS); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, NULL, "Show Recursive", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BORecursive->SetValue(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, NULL, "Game", RRF_RT_REG_SZ, NULL, TS, &TSL);
@@ -1442,8 +1457,6 @@ public:
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPC, NULL)->Check(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, "Skip", "Broken", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPB, NULL)->Check(TS[0] == '1'); TSL = 1023;
-
-    filter.Compile(BOFilter->GetValue());
 
     DirectoryFromFiles(0);
     ResetHButtons();
