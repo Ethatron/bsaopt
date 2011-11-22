@@ -1309,6 +1309,7 @@ public:
     skipexisting  = BOSettings->FindChildItem(wxID_SKIPE, NULL)->IsChecked();
     skipnewer     = BOSettings->FindChildItem(wxID_SKIPN, NULL)->IsChecked();
     skiphashcheck = BOSettings->FindChildItem(wxID_SKIPC, NULL)->IsChecked();
+    skipbroken    = BOSettings->FindChildItem(wxID_SKIPB, NULL)->IsChecked();
     processhidden = BOSettings->FindChildItem(wxID_SKIPH, NULL)->IsChecked();
     verbose = false;
     dropextras = true;
