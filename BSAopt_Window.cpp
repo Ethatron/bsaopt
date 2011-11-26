@@ -120,6 +120,14 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	BOSkipBroken = new wxMenuItem( BOSettings, wxID_SKIPB, wxString( wxT("Skip broken files") ) , wxEmptyString, wxITEM_CHECK );
 	BOSettings->Append( BOSkipBroken );
 	
+	wxMenuItem* m_separator3;
+	m_separator3 = BOSettings->AppendSeparator();
+	
+	wxMenuItem* BOUnselectExtras;
+	BOUnselectExtras = new wxMenuItem( BOSettings, wxID_SKIPX, wxString( wxT("Unselect inappropriate") ) , wxEmptyString, wxITEM_CHECK );
+	BOSettings->Append( BOUnselectExtras );
+	BOUnselectExtras->Check( true );
+	
 	BOMenuBar->Append( BOSettings, wxT("Settings") ); 
 	
 	this->SetMenuBar( BOMenuBar );
@@ -157,7 +165,7 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	
 	bSizer36->Add( bSizer32, 0, wxEXPAND, 5 );
 	
-	BOArchiveTree = new wxTreeCtrl( BOPanelContents, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTR_DEFAULT_STYLE|wxTR_HIDE_ROOT|wxTR_SINGLE );
+	BOArchiveTree = new wxTreeCtrl( BOPanelContents, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTR_DEFAULT_STYLE|wxTR_SINGLE );
 	BOArchiveTree->SetToolTip( wxT("The directories present under the given source") );
 	
 	bSizer36->Add( BOArchiveTree, 1, wxALL|wxEXPAND, 5 );
@@ -266,6 +274,7 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	this->Connect( BOSkipHidden->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipHidden ) );
 	this->Connect( BOSkipHash->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipHash ) );
 	this->Connect( BOSkipBroken->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipBroken ) );
+	this->Connect( BOUnselectExtras->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeUnselectExtras ) );
 	BOInput->Connect( wxEVT_COMMAND_DIRPICKER_CHANGED, wxFileDirPickerEventHandler( wxBSAopt::ChangePluginDir ), NULL, this );
 	BOInText->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedIn ), NULL, this );
 	BOInBrowse->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseIn ), NULL, this );
@@ -294,6 +303,7 @@ wxBSAopt::~wxBSAopt()
 	this->Disconnect( wxID_SKIPH, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipHidden ) );
 	this->Disconnect( wxID_SKIPC, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipHash ) );
 	this->Disconnect( wxID_SKIPB, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipBroken ) );
+	this->Disconnect( wxID_SKIPX, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeUnselectExtras ) );
 	BOInput->Disconnect( wxEVT_COMMAND_DIRPICKER_CHANGED, wxFileDirPickerEventHandler( wxBSAopt::ChangePluginDir ), NULL, this );
 	BOInText->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedIn ), NULL, this );
 	BOInBrowse->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseIn ), NULL, this );

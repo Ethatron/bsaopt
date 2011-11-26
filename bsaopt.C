@@ -138,6 +138,7 @@ bool optimizequick = false;
 void InitProgress(const char *patterna, const char *patternb, int dne, int rng);
 void SetProgress(const char *str, int dne);
 void SetProgress(size_t din, size_t dou);
+void SetTopic(const char *topic);
 
 #include "bsaopt-io.C"
 
@@ -281,6 +282,10 @@ public:
 
     BOEfficiency->SetRange(0xFFFF);
     BOEfficiency->SetValue(rng);
+  }
+
+  void SetTopic(const char *topic) {
+    BOSubject->SetLabel(topic);
   }
 
   void PollProgress() {
@@ -467,6 +472,7 @@ class BSAoptGUI; class BSAoptGUI *gui;
 class BSAoptGUI : public wxBSAopt
 {
 public:
+  int iarchive, oarchive;
   int iactives, oactives;
   int iprogres, oprogres;
   iomap fdirectory;
@@ -570,7 +576,7 @@ private:
 //    wxString sData = BOArchiveTree->GetItemText(item);
       if (lvl == 0) {
 	BOArchiveTree->Expand(item);
-	BOArchiveTree->SelectItem(item);
+//	BOArchiveTree->SelectItem(item);
       }
 
       if (BOArchiveTree->ItemHasChildren(item)) {
@@ -630,6 +636,10 @@ private:
 
 	dle += 1;
 
+	/* no BSAs inside BSAs! */
+	if (!o && oarchive && isext(locl, "bsa"))
+	  return msk;
+
 	sprintf(tmp, "Skimming %s \"%s\" ...", o ? "output" : "input", dle);
 	BOStatusBar->SetStatusText(wxT(tmp), 0);
 
@@ -657,6 +667,8 @@ private:
 
 	    strcat(nname, et->name);
 	    strcat(lname, et->name);
+
+	    strlwr(lname);
 
 	    /* recurse */
 	    int lmsk = Scan(nname, lname, entry, lvl + 1, o);
@@ -699,6 +711,7 @@ private:
 	bool dealloc = false;
 	bool docopy = true;
 	bool iszero = !info.io_size;
+	bool firsttime = (fdirectory.count(locl) == 0);
 	class ioio *nfo = &fdirectory[locl];
 
 	/* strip trailing slash */
@@ -710,8 +723,15 @@ private:
 	if (stristr(fle, "thumbs.db"))
 	  return 0;
 	if (dropextras) {
-	  if (isext(fle, "psd"))
-	    docopy = false;
+	  /* none of this stuff inside BSAs! */
+	  if (!o && oarchive && firsttime) {
+	    if (isext(fle, "esp"))
+	      nfo->selected = false;
+	    if (isext(fle, "pdf"))
+	      nfo->selected = false;
+	    if (isext(fle, "psd"))
+	      nfo->selected = false;
+	  }
 
 //	  if (!docopy)
 //	    fprintf(stderr, "filtered \"%s\"\n", fle);
@@ -729,7 +749,7 @@ private:
 	  nfo->iex = true;
 	  nfo->in = info;
 
-	  iactives++;
+	  iactives += (nfo->selected ? 1 : 0);
 	}
 
 	msk |= (nfo->oex ? OEX : 0) | (nfo->iex ? IEX : 0);
@@ -744,8 +764,13 @@ private:
     wxBusyCursor busy;
     wxTreeItemId root;
 
+    iarchive = isarchive(BOInText ->GetValue().data());
+    oarchive = isarchive(BOOutText->GetValue().data());
+
     if (!io) {
-      iactives = oactives = 0;
+      iactives =
+      oactives = 0;
+
       fdirectory.clear();
     }
     else if (io == 1) {
@@ -793,7 +818,7 @@ private:
 
     BOArchiveList->Clear();
     BOArchiveTree->DeleteAllItems(); root =
-    BOArchiveTree->AddRoot("root");
+    BOArchiveTree->AddRoot("\\");
 
     try {
 //    if (!io || (io == 1)) {
@@ -812,6 +837,10 @@ private:
     }
 
     RefreshDirectory(root);
+
+    /* preselect root (will trigger ChangedItem()) */
+    BOArchiveTree->Expand(root);
+    BOArchiveTree->SelectItem(root, true);
 
     BOStatusBar->SetStatusText(wxT("Ready"), 0);
   }
@@ -889,6 +918,10 @@ private:
     RegSetKeyValue(Settings, "Skip", "Broken", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
   }
 
+  void ChangeUnselectExtras(wxCommandEvent& event) {
+    RegSetKeyValue(Settings, "Unselect", "Extras", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
+  }
+
   void ChangeRecursion(wxCommandEvent& event) {
     RegSetKeyValue(Settings, NULL, "Show Recursive", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
 
@@ -918,8 +951,7 @@ private:
     processhidden = BOSettings->FindChildItem(wxID_SKIPH, NULL)->IsChecked();
 
     BOArchiveList->Clear();
-    if (!basedir[0])
-      return;
+/*  If we don't want root selectable do this: if (!basedir[0]) return; */
 
     BOStatusBar->SetStatusText(wxT("Refreshing file-list ..."), 0);
     ldirectory.clear();
@@ -929,6 +961,8 @@ private:
 
       if ((fname == stristr(fname, basedir))) {
 	const char *fbase = fname + strlen(basedir) + 1;
+	/* prevent matching similarly named subdirectories */
+	if (fbase[-1] == '\\')
 
 	/* recursive or direct file */
 	if ((BORecursive->GetValue() || !strchr(fbase, '\\')) && filter.Matches(fbase)) {
@@ -985,7 +1019,8 @@ private:
   void ChangeSelectedFiles(wxCommandEvent& event) {
     int n = event.GetSelection();
     iomap::iterator f = ldirectory[n];
-    bool selected = event.IsChecked();
+    /* event.IsChecked() doesn't work here */
+    bool selected = BOArchiveList->IsChecked(n);
 
     /**/ if ( selected && !f->second.selected)
       iactives++;
@@ -1049,10 +1084,6 @@ private:
     if (ph.IsNull()) 
       return;
 
-    /* does it exist? */
-    if (GetFileAttributes(ph.data()) == INVALID_FILE_ATTRIBUTES)
-      return;
-
     BrowseOut(ph);
   }
 
@@ -1083,6 +1114,10 @@ private:
     if (ph.IsNull())
       return;
 
+    /* does it exist? */
+    if (GetFileAttributes(ph.data()) == INVALID_FILE_ATTRIBUTES)
+      return;
+
     DirectoryFromFiles(2);
     ResetHButtons();
   }
@@ -1103,6 +1138,9 @@ private:
     prog = NULL;
     if (ret != 666)
       return;
+
+    /* reflect the changes made to the output */
+    DirectoryFromFiles(2);
   }
 
 public:
@@ -1134,6 +1172,10 @@ public:
 	if ((oinfo.io_type & IO_DIRECTORY) || simulation) {
 	  struct iodir *dir;
 
+	  /* no BSAs inside BSAs! */
+	  if (oarchive && isext(lcname, "bsa"))
+	    return;
+
 	  if ((dir = ioopendir(inname))) {
 	    struct iodirent *et;
 
@@ -1157,6 +1199,8 @@ public:
 	      strcat(ninname, et->name);
 	      strcat(nouname, et->name);
 	      strcat(nlcname, et->name);
+
+	      strlwr(nlcname);
 
 	      Process(ninname, nouname, nlcname);
 
@@ -1223,10 +1267,6 @@ public:
 	fle += 1;
 	if (stristr(fle, "thumbs.db"))
 	  docopy = false;
-	if (dropextras) {
-	  if (isext(fle, "psd"))
-	    docopy = false;
-	}
 
 	if (!docopy)
 	  prog->SetProgress(lcname, iprogres++);
@@ -1311,8 +1351,8 @@ public:
     skiphashcheck = BOSettings->FindChildItem(wxID_SKIPC, NULL)->IsChecked();
     skipbroken    = BOSettings->FindChildItem(wxID_SKIPB, NULL)->IsChecked();
     processhidden = BOSettings->FindChildItem(wxID_SKIPH, NULL)->IsChecked();
+    dropextras    = BOSettings->FindChildItem(wxID_SKIPX, NULL)->IsChecked();
     verbose = false;
-    dropextras = true;
 
     gameversion = -1;
     /**/ if (BOGame->FindChildItem(wxID_OBLIVON, NULL)->IsChecked())
@@ -1458,6 +1498,10 @@ public:
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPC, NULL)->Check(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, "Skip", "Broken", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPB, NULL)->Check(TS[0] == '1'); TSL = 1023;
+    TS[0] = 0; RegGetValue(Settings, "Unselect", "Extras", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPX, NULL)->Check(TS[0] == '1'); TSL = 1023;
+
+    dropextras = (TS[0] == '1');
 
     DirectoryFromFiles(0);
     ResetHButtons();
@@ -1563,6 +1607,11 @@ void SetProgress(const char *str, int dne) {
 void SetProgress(size_t din, size_t dou) {
   if (prg)
     prg->SetProgress(din, dou);
+}
+
+void SetTopic(const char *topic) {
+  if (prg)
+    prg->SetTopic(topic);
 }
 
 DWORD __stdcall ConversionStart(LPVOID lp) {

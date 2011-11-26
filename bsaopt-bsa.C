@@ -539,6 +539,8 @@ public:
 	unsigned int _magic, _version;
 	struct OBBSAHeader _header;
 
+	SetTopic("Assembling BSA-directory:");
+
 	fls = flc = 0;
 	prg = bdy = 0;
 	mem = malloc(1024 * 1024);
@@ -633,6 +635,7 @@ public:
 	/* progress */
 //	fprintf(stderr, "Consolidating BSA-fragments: %d/%d files (%d/%d bytes)\r", fls, flc, prg, bdy);
 
+	SetTopic("Consolidating BSA-fragments:");
 	SetProgress(
 	  processedinbytes, 
 	  processedinbytes - compresseddtbytes - virtualbsabytes
@@ -818,6 +821,10 @@ public:
 		*fname++ = '\0';
 
 		assert(fname <= fend);
+		SetProgress(
+		  processedinbytes, 
+		  processedinbytes - compresseddtbytes - virtualbsabytes
+		);
 	      }
 	    }
 	  }
