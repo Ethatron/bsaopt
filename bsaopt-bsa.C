@@ -1647,23 +1647,26 @@ public:
 	    compressedoubytes += file->ous;
 	  }
 
+	  char *fail = NULL;
 	  if (file->ous > (~OB_BSAFILE_FLAG_ALLFLAGS))
-	    throw runtime_error("The file-record exceeds 1GiB!");
-
+	    fail = "The file-record exceeds 1GiB!";
 	  /* the order of the files in our temporary blob is irrelevant
 	   * no need to make it ordered, just prevent overlapping writes
 	   */
-	  ioblock(); {
+	  else { ioblock(); {
 	    file->oinfo.sizeFlags = file->ous;
 	    file->oinfo.offset = ftell(obsa);
+
+	    /* check sanity */
 	    if (file->oinfo.offset > 0x7FFFFFFF)
-	      throw runtime_error("The temporary file exceeds 2GiB!");
-
+	      fail = "The temporary file exceeds 2GiB!";
 	    /* write to temporary file */
-	    if ((ret = fwrite(file->oup, 1, file->ous, obsa)) != file->ous)
-	      throw runtime_error("Writing BSA failed!");
-	  }; iorelease();
+	    else if ((ret = fwrite(file->oup, 1, file->ous, obsa)) != file->ous)
+	      fail = "Writing BSA failed!";
+	  }; iorelease(); }
 
+	  if (fail)
+	    throw runtime_error(fail);
 	  if (zlb)
 	    file->oinfo.sizeFlags |= OB_BSAFILE_FLAG_COMPRESS;
 

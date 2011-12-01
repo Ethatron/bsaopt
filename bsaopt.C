@@ -1223,8 +1223,8 @@ public:
 
 		/* ioopen/fopen is synchronous, only close is
 		 * asynchronous, which means even non-yet-written
-		 * files exist in the folder and we don't nee to wait for
-		 * completition to check if a folder is empty/non-empty
+		 * files exist in the folder and we don't need to wait for
+		 * completion to check if a folder is empty/non-empty
 		 *
 		 * no lock/synchronization necessary
 		 */
