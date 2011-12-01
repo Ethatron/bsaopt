@@ -353,6 +353,12 @@ protected:
     return adler;
   }
 
+  bool shutdown(const char *message) {
+    if (ibsa) fclose(ibsa); ibsa = NULL;
+    throw runtime_error(message);
+    return true;
+  }
+
 public:
   bool open(const char *pathname) {
     arcname.assign(pathname);
@@ -368,11 +374,11 @@ public:
     /* open for reading */
     if ((ibsa = fopen(pathname, "rb"))) {
       if (fread(&magic, 1, sizeof(magic), ibsa) != sizeof(magic))
-	return (loaded = true);
+	return shutdown("Can't read from the BSA!");
 
       if (magic == OB_BSAHEADER_FILEID) {
 	if (fread(&version, 1, sizeof(version), ibsa) != sizeof(version))
-	  return (loaded = true);
+	  return shutdown("Can't read from the BSA!");
 
 	if ((version == OB_BSAHEADER_VERSION) ||
 	    (version == SK_BSAHEADER_VERSION)) {
@@ -380,9 +386,9 @@ public:
 	    gameversion = (int)version;
 
 	  if (fread(&header, 1, sizeof(header), ibsa) != sizeof(header))
-	    return (loaded = true);
+	    return shutdown("Can't read from the BSA!");
 	  if (fseek(ibsa, 0, SEEK_END))
-	    return (loaded = true);
+	    return shutdown("Can't read from the BSA!");
 
 	  sizefile = ftell(ibsa);
 
@@ -527,7 +533,11 @@ public:
 	  /* remove compressed flag (it's on each individual file now) */
 	  header.ArchiveFlags &= ~OB_BSAARCHIVE_COMPRESSFILES;
 	}
+	else
+	  return shutdown("File has unsupported version!");
       }
+      else
+	return shutdown("File is not a BSA!");
     }
 
     return (loaded = true);
