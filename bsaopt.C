@@ -594,7 +594,7 @@ private:
 
     while (item.IsOk()) {
       wxString sData = BOArchiveTree->GetItemText(item);
-      if (sData == name)
+      if (!sData.CmpNoCase(name))
 	return item;
 
       item = BOArchiveTree->GetNextChild(root, cookie);
@@ -1455,12 +1455,25 @@ public:
     if (!filter.Compile(wildcard))
       filter.Compile("");
 
+    TS[0] = 0; RegGetValue(Settings, "Skip", "Existing", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPE, NULL)->Check(TS[0] == '1'); TSL = 1023;
+    TS[0] = 0; RegGetValue(Settings, "Skip", "Newer", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPN, NULL)->Check(TS[0] == '1'); TSL = 1023;
+    TS[0] = 0; RegGetValue(Settings, "Skip", "Hidden", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPH, NULL)->Check(TS[0] == '1'); TSL = 1023;
+    TS[0] = 0; RegGetValue(Settings, "Skip", "Hash", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPC, NULL)->Check(TS[0] == '1'); TSL = 1023;
+    TS[0] = 0; RegGetValue(Settings, "Skip", "Broken", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPB, NULL)->Check(TS[0] == '1'); TSL = 1023;
+    TS[0] = 0; RegGetValue(Settings, "Unselect", "Extras", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPX, NULL)->Check(TS[0] == '1'); TSL = 1023;
+
+    TS[0] = 0; RegGetValue(Settings, NULL, "Show Recursive", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BORecursive->SetValue(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, NULL, "Input Location", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOInText->SetValue(TS); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, NULL, "Output Location", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOOutText->SetValue(TS); TSL = 1023;
-    TS[0] = 0; RegGetValue(Settings, NULL, "Show Recursive", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BORecursive->SetValue(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, NULL, "Game", RRF_RT_REG_SZ, NULL, TS, &TSL);
     switch (TS[0]) {
       case '0': BOGame->FindChildItem(wxID_AUTO   , NULL)->Check(true); break;
@@ -1488,18 +1501,6 @@ public:
 	if (TS[0]) BOCompression->FindChildItem(wxID_BOZ10Q, NULL)->Check(TS[0] == '1'); TSL = 1023;
 	break;
     } TSL = 1023;
-    TS[0] = 0; RegGetValue(Settings, "Skip", "Existing", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPE, NULL)->Check(TS[0] == '1'); TSL = 1023;
-    TS[0] = 0; RegGetValue(Settings, "Skip", "Newer", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPN, NULL)->Check(TS[0] == '1'); TSL = 1023;
-    TS[0] = 0; RegGetValue(Settings, "Skip", "Hidden", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPH, NULL)->Check(TS[0] == '1'); TSL = 1023;
-    TS[0] = 0; RegGetValue(Settings, "Skip", "Hash", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPC, NULL)->Check(TS[0] == '1'); TSL = 1023;
-    TS[0] = 0; RegGetValue(Settings, "Skip", "Broken", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPB, NULL)->Check(TS[0] == '1'); TSL = 1023;
-    TS[0] = 0; RegGetValue(Settings, "Unselect", "Extras", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPX, NULL)->Check(TS[0] == '1'); TSL = 1023;
 
     dropextras = (TS[0] == '1');
 
