@@ -256,10 +256,25 @@ public:
     changedhead(false),
     changedbody(false),
     ibsa(NULL),
-    obsa(NULL) {}
+    obsa(NULL),
+    fbsa(NULL),
+    mem(NULL),
+    cmp(NULL) {}
   ~bsarchive() {
     if (ibsa) fclose(ibsa);
     if (obsa) fclose(obsa);
+    if (fbsa) fclose(fbsa);
+    if (mem) free(mem);
+    if (cmp) free(cmp);
+  }
+
+  bool shutdown(const char *message) {
+    if (ibsa) { fclose(ibsa); ibsa = NULL; }
+    if (obsa) { fclose(obsa); obsa = NULL; }
+    if (fbsa) { fclose(fbsa); fbsa = NULL; unlink((arcname + ".final").data()); }
+
+    throw runtime_error(message);
+    return true;
   }
 
 public:
@@ -269,6 +284,7 @@ public:
   size_t sizehead, sizebody, sizefile;
   FILE *ibsa;
   FILE *obsa;
+  FILE *fbsa;
 
   time_t arctime;
   string arcname;
@@ -290,9 +306,9 @@ protected:
  //   fprintf(stderr, "Consolidating BSA-fragments: %d/%d files (%d/%d bytes)\r", fls, flc, prg, bdy);
 
       if ((rsr = fread (mem, 1, blk, src)) != blk)
-	throw runtime_error("Reading BSA failed!");
+	shutdown("Reading BSA failed!");
       if ((wds = fwrite(mem, 1, blk, dst)) != blk)
-	throw runtime_error("Writing BSA failed!");
+	shutdown("Writing BSA failed!");
 
       prg += blk;
       cnt -= blk;
@@ -311,9 +327,9 @@ protected:
       blk = min(cnt, 1024 * 1024);
 
       if ((rsr = fread(mem, 1, blk, src)) != blk)
-	throw runtime_error("Reading BSA failed!");
+	shutdown("Reading BSA failed!");
       if ((rds = fread(cmp, 1, blk, dst)) != blk)
-	throw runtime_error("Reading BSA failed!");
+	shutdown("Reading BSA failed!");
 
       diff = diff || !!memcmp(mem, cmp, blk);
 
@@ -322,10 +338,10 @@ protected:
 
     /* rewind to source-location */
     if (fseek(src, -((long)sze), SEEK_CUR))
-      throw runtime_error("Seeking BSA failed!");
+      shutdown("Seeking BSA failed!");
     /* rewind to destination-location */
     if (fseek(dst, -((long)sze), SEEK_CUR))
-      throw runtime_error("Seeking BSA failed!");
+      shutdown("Seeking BSA failed!");
 
     return diff;
   }
@@ -339,7 +355,7 @@ protected:
       blk = min(cnt, 1024 * 1024);
 
       if ((rsr = fread(mem, 1, blk, src)) != blk)
-	throw runtime_error("Reading BSA failed!");
+	shutdown("Reading BSA failed!");
 
       adler = adler32(adler, (const Bytef *)mem, (uInt)blk);
 
@@ -348,15 +364,9 @@ protected:
 
     /* rewind to source-location */
     if (fseek(src, -((long)sze), SEEK_CUR))
-      throw runtime_error("Seeking BSA failed!");
+      shutdown("Seeking BSA failed!");
 
     return adler;
-  }
-
-  bool shutdown(const char *message) {
-    if (ibsa) fclose(ibsa); ibsa = NULL;
-    throw runtime_error(message);
-    return true;
   }
 
 public:
@@ -462,7 +472,7 @@ public:
 	      if (folder.iinfo.hash != folder.oinfo.hash) {
 		sprintf(rerror, "BSA corrupt: Hash for folder \"%s\" in \"%s\" is different!\n", folder.data(), pathname);
 		if (!skiphashcheck)
-		  throw runtime_error(rerror);
+		  return shutdown(rerror);
 	      }
 
 #if 0
@@ -507,7 +517,7 @@ public:
 		if (file.iinfo.hash != file.oinfo.hash) {
 		  sprintf(rerror, "BSA corrupt: Hash for file \"%s\" in \"%s\" is different!\n", file.data(), pathname);
 		  if (!skiphashcheck)
-		    throw runtime_error(rerror);
+		    return shutdown(rerror);
 		}
 
 #if 0
@@ -537,7 +547,7 @@ public:
 	  return shutdown("File has unsupported version!");
       }
       else
-	return shutdown("File is not a BSA!");
+	return shutdown("File is not a supported BSA!");
     }
 
     return (loaded = true);
@@ -550,7 +560,7 @@ public:
   bool close() {
 //#pragma omp barrier
     if (changed()) {
-      FILE *fbsa = fopen((arcname + ".final").data(), "wb+");
+      fbsa = fopen((arcname + ".final").data(), "wb+");
       if (fbsa) {
 	unsigned int _magic, _version;
 	struct OBBSAHeader _header;
@@ -611,9 +621,9 @@ public:
 		  flc += 1;
 		}
 		else if ((*ft).oinfo.sizeFlags || (*ft).iinfo.sizeFlags)
-		  throw runtime_error("Lost BSA-File reference!");
+		  return shutdown("Lost BSA-File reference!");
 		if (bdy > 0x7FFFFFFF)
-		  throw runtime_error("The BSA would exceed 2GiB!");
+		  return shutdown("The BSA would exceed 2GiB!");
 
 		/* revoke all-compressed flag */
 		_header.ArchiveFlags &= ~(zlb ? 0 : OB_BSAARCHIVE_COMPRESSFILES);
@@ -632,7 +642,7 @@ public:
 	  _header.FileNameLength;
 
 	if ((_header.FolderRecordOffset + EndOfDirectory + bdy) > 0x7FFFFFFF)
-	  throw runtime_error("The BSA would exceed 2GiB!");
+	  return shutdown("The BSA would exceed 2GiB!");
 
 	/* set new size */
 	fseek(fbsa, _header.FolderRecordOffset + EndOfDirectory, SEEK_SET);
@@ -726,7 +736,7 @@ public:
 
 		  /* goto source-location */
 		  if (fseek(obsa, pos, SEEK_SET))
-		    throw runtime_error("Seeking BSA failed!");
+		    return shutdown("Seeking BSA failed!");
 
 		  /* possible duplicate */
 		  bool diff = true;
@@ -736,14 +746,14 @@ public:
 		  if ((adler = (*ft)->ocs) && (ref = written[adler])) {
 		    /* goto source-location */
 		    if (fseek(fbsa, ref->offset, SEEK_SET))
-		      throw runtime_error("Seeking BSA failed!");
+		      return shutdown("Seeking BSA failed!");
 
 		    /* compare with small buffer */
 		    diff = smallcompare(sze, obsa, fbsa);
 
 		    /* goto destination-location */
 		    if (fseek(fbsa, fle.offset, SEEK_SET))
-		      throw runtime_error("Seeking BSA failed!");
+		      return shutdown("Seeking BSA failed!");
 
 		    /* they are equal */
 		    if (!diff) {
@@ -777,7 +787,7 @@ public:
 
 		  /* goto source-location */
 		  if (fseek(ibsa, pos, SEEK_SET))
-		    throw runtime_error("Seeking BSA failed!");
+		    return shutdown("Seeking BSA failed!");
 
 		  /* possible duplicate */
 		  bool diff = true;
@@ -787,14 +797,14 @@ public:
 		  if ((adler = (*ft)->ics) && (ref = written[adler])) {
 		    /* goto source-location */
 		    if (fseek(fbsa, ref->offset, SEEK_SET))
-		      throw runtime_error("Seeking BSA failed!");
+		      return shutdown("Seeking BSA failed!");
 
 		    /* compare with small buffer */
 		    diff = smallcompare(sze, ibsa, fbsa);
 
 		    /* goto destination-location */
 		    if (fseek(fbsa, fle.offset, SEEK_SET))
-		      throw runtime_error("Seeking BSA failed!");
+		      return shutdown("Seeking BSA failed!");
 
 		    /* they are equal */
 		    if (!diff) {
@@ -849,8 +859,8 @@ public:
 	assert(dfmix == dend);
 	assert(fname == fend);
 
-	free(mem);
-	free(cmp);
+	free(mem); mem = NULL;
+	free(cmp); cmp = NULL;
 
 	/* progress */
 //	fprintf(stderr, "Finalizing BSA-directory                                                  \r");
