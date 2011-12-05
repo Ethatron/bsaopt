@@ -128,6 +128,13 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	BOSettings->Append( BOUnselectExtras );
 	BOUnselectExtras->Check( true );
 	
+	wxMenuItem* m_separator31;
+	m_separator31 = BOSettings->AppendSeparator();
+	
+	wxMenuItem* BOLogfile;
+	BOLogfile = new wxMenuItem( BOSettings, wxID_LOGF, wxString( wxT("Write logfile") ) , wxEmptyString, wxITEM_CHECK );
+	BOSettings->Append( BOLogfile );
+	
 	BOMenuBar->Append( BOSettings, wxT("Settings") ); 
 	
 	this->SetMenuBar( BOMenuBar );
@@ -275,6 +282,7 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	this->Connect( BOSkipHash->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipHash ) );
 	this->Connect( BOSkipBroken->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipBroken ) );
 	this->Connect( BOUnselectExtras->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeUnselectExtras ) );
+	this->Connect( BOLogfile->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeLogFile ) );
 	BOInput->Connect( wxEVT_COMMAND_DIRPICKER_CHANGED, wxFileDirPickerEventHandler( wxBSAopt::ChangePluginDir ), NULL, this );
 	BOInText->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedIn ), NULL, this );
 	BOInBrowse->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseIn ), NULL, this );
@@ -304,6 +312,7 @@ wxBSAopt::~wxBSAopt()
 	this->Disconnect( wxID_SKIPC, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipHash ) );
 	this->Disconnect( wxID_SKIPB, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipBroken ) );
 	this->Disconnect( wxID_SKIPX, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeUnselectExtras ) );
+	this->Disconnect( wxID_LOGF, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeLogFile ) );
 	BOInput->Disconnect( wxEVT_COMMAND_DIRPICKER_CHANGED, wxFileDirPickerEventHandler( wxBSAopt::ChangePluginDir ), NULL, this );
 	BOInText->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedIn ), NULL, this );
 	BOInBrowse->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseIn ), NULL, this );

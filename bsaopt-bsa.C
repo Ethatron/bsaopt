@@ -471,6 +471,7 @@ public:
 	    if (!skiphashcheck || verbose)
 	      if (folder.iinfo.hash != folder.oinfo.hash) {
 		sprintf(rerror, "BSA corrupt: Hash for folder \"%s\" in \"%s\" is different!\n", folder.data(), pathname);
+		nfoprintf(stderr, rerror);
 		if (!skiphashcheck)
 		  return shutdown(rerror);
 	      }
@@ -516,6 +517,7 @@ public:
 	      if (!skiphashcheck || verbose)
 		if (file.iinfo.hash != file.oinfo.hash) {
 		  sprintf(rerror, "BSA corrupt: Hash for file \"%s\" in \"%s\" is different!\n", file.data(), pathname);
+		  nfoprintf(stderr, rerror);
 		  if (!skiphashcheck)
 		    return shutdown(rerror);
 		}
@@ -662,6 +664,10 @@ public:
 //	fprintf(stderr, "Consolidating BSA-fragments: %d/%d files (%d/%d bytes)\r", fls, flc, prg, bdy);
 
 	SetTopic("Consolidating BSA-fragments:");
+	SetReport("Efficiency: %s to %s bytes (%d duplicates)", 
+	  processedinbytes, 
+	  processedinbytes - compresseddtbytes - virtualbsabytes, 0
+	);
 	SetProgress(
 	  processedinbytes,
 	  processedinbytes - compresseddtbytes - virtualbsabytes
@@ -847,6 +853,10 @@ public:
 		*fname++ = '\0';
 
 		assert(fname <= fend);
+		SetReport("Efficiency: %s to %s bytes (%d duplicates)", 
+		  processedinbytes, 
+		  processedinbytes - compresseddtbytes - virtualbsabytes, (int)duplicates.size()
+		);
 		SetProgress(
 		  processedinbytes,
 		  processedinbytes - compresseddtbytes - virtualbsabytes
@@ -1314,7 +1324,7 @@ public:
 	if (res != Z_OK) {
 	  /* this happens with 0-size files */
 	  if (realsze)
-	    fprintf(stderr, "File \"%s\" has corrupt compression!\n", file->data());
+	    nfoprintf(stderr, "File \"%s\" has corrupt compression!\n", file->data());
 	  return 0;
 	}
 
@@ -1547,7 +1557,6 @@ public:
 		}
 	      }
 
-#if 0
 	      /* uh, MicroSoft, no signed "ssize_t"? */
 	      ptrdiff_t delta = realsze - defaultsize;
 	      ptrdiff_t serch = defaultsize - bestsize;
@@ -1565,7 +1574,6 @@ public:
 		  nfoprintf(stderr, "compressed:       by %d bytes (%.4f%%) (%d eliminated through search)\n", delta, (100.0f * bestsize) / realsze, serch);
 		}
 	      }
-#endif
 	    }
 
 	    if (strategy > -2) {
@@ -1647,7 +1655,6 @@ public:
 	      zlb = false;
 	    }
 
-#if 0
 	    /* uh, MicroSoft, no signed "ssize_t"? */
 	    if (!srchbestbsa) {
 	      ptrdiff_t delta = realsze - packsze;
@@ -1660,7 +1667,6 @@ public:
 		}
 	      }
 	    }
-#endif
 
 	    /* collect data */
 	    compresseddtbytes += (zlb ? realsze - packsze : 0);

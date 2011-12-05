@@ -117,6 +117,7 @@ bool skipbroken = false;
 bool processhidden = false;
 bool verbose = false;
 bool dropextras = true;
+bool optimizequick = false;
 
 map<string, string> duplicates;
 
@@ -130,15 +131,41 @@ size_t compressedoubytes = 0;
 size_t processedinbytes;
 size_t processedoubytes;
 
-#define nfoprintf(f, format, ...) {}
-#define errprintf(f, format, ...) {}
+#define nfoprintf(f, format, ...) { if (logfile) { fprintf(logfile, format, ## __VA_ARGS__); } }
+#define errprintf(f, format, ...) { if (logfile) { fprintf(logfile, format, ## __VA_ARGS__); } }
 
-bool optimizequick = false;
+FILE *logfile = NULL;
+void summary(FILE *out, const char *ou, int processedfiles) {
+  if (1) {
+    fprintf(out, "\n\nFinal report \"%s\":\n", ou);
+    fprintf(out, " processed files: %d\n", processedfiles);
+
+    if (processedoubytes || processedinbytes)
+      fprintf(out, " i/o delta: %d bytes\n", processedoubytes - processedinbytes);
+    if (compressedinbytes || compressedoubytes)
+      fprintf(out, " z delta: %d bytes\n", compressedoubytes - compressedinbytes);
+    if (virtualbsabytes || virtualbsafiles)
+      fprintf(out, " bsa virtuals: -%d bytes (%d files)\n", virtualbsabytes, virtualbsafiles);
+  }
+
+  if (1) {
+    if (duplicates.size() > 0) {
+      fprintf(out, "\nduplicates files:\n");
+      map<string, string>::iterator n;
+      for (n = duplicates.begin(); n != duplicates.end(); n++)
+	fprintf(out, "%s == %s\n", n->first.data(), n->second.data());
+    }
+  }
+
+  fflush(out);
+}
 
 void InitProgress(const char *patterna, const char *patternb, int dne, int rng);
 void SetProgress(const char *str, int dne);
 void SetProgress(size_t din, size_t dou);
 void SetTopic(const char *topic);
+void SetReport(const char *status, size_t din, size_t dou);
+void SetReport(const char *status, size_t din, size_t dou, int dpl);
 
 #include "bsaopt-io.C"
 
@@ -270,7 +297,7 @@ public:
     char tmp[256];
 
     if (lastpa) { sprintf(tmp, lastpa, str  ); BOSubject->SetLabel(tmp); }
-    if (lastpb) { sprintf(tmp, lastpb, "..."); BOReport ->SetLabel(tmp); }
+//  if (lastpb) { sprintf(tmp, lastpb, "..."); BOReport ->SetLabel(tmp); }
 
     BOTask->SetValue(dne);
   }
@@ -286,6 +313,35 @@ public:
 
   void SetTopic(const char *topic) {
     BOSubject->SetLabel(topic);
+  }
+
+  void SetReport(const char *status, size_t din, size_t dou, int dpl = -1) {
+    char tmp[256], tmpi[256], tmpo[256];
+
+    /**/ if (din > 1000 * 1000 * 1000)
+      sprintf(tmpi, "%d.%03d.%03d.%03d", ((din / 1000) / 1000) / 1000, ((din / 1000) / 1000) % 1000, (din / 1000) % 1000, din % 1000);
+    else if (din > 1000 * 1000)
+      sprintf(tmpi, "%d.%03d.%03d", (din / 1000) / 1000, (din / 1000) % 1000, din % 1000);
+    else if (din > 1000)
+      sprintf(tmpi, "%d.%03d", din / 1000, din % 1000);
+    else 
+      sprintf(tmpi, "%d", din % 1000);
+
+    /**/ if (dou > 1000 * 1000 * 1000)
+      sprintf(tmpo, "%d.%03d.%03d.%03d", ((dou / 1000) / 1000) / 1000, ((dou / 1000) / 1000) % 1000, (dou / 1000) % 1000, dou % 1000);
+    else if (dou > 1000 * 1000)
+      sprintf(tmpo, "%d.%03d.%03d", (dou / 1000) / 1000, (dou / 1000) % 1000, dou % 1000);
+    else if (dou > 1000)
+      sprintf(tmpo, "%d.%03d", dou / 1000, dou % 1000);
+    else 
+      sprintf(tmpo, "%d", dou % 1000);
+
+    if (dpl < 0)
+      sprintf(tmp, status, tmpi, tmpo);
+    else
+      sprintf(tmp, status, tmpi, tmpo, dpl);
+
+    BOReport->SetLabel(tmp);
   }
 
   void PollProgress() {
@@ -471,6 +527,8 @@ public:
 class BSAoptGUI; class BSAoptGUI *gui;
 class BSAoptGUI : public wxBSAopt
 {
+  friend class BSAoptApp;
+
 public:
   int iarchive, oarchive;
   int iactives, oactives;
@@ -480,6 +538,7 @@ public:
   vector<iomap::iterator> ldirectory;
   wxRegEx filter;
   string currentpath;
+  bool warmup;
 
 private:
   // Installed Path
@@ -711,8 +770,6 @@ private:
 	bool dealloc = false;
 	bool docopy = true;
 	bool iszero = !info.io_size;
-	bool firsttime = (fdirectory.count(locl) == 0);
-	class ioio *nfo = &fdirectory[locl];
 
 	/* strip trailing slash */
 	if (!(fle = strrchr(name, '/')))
@@ -722,6 +779,9 @@ private:
 	fle += 1;
 	if (stristr(fle, "thumbs.db"))
 	  return 0;
+
+	bool firsttime = (fdirectory.count(locl) == 0);
+	class ioio *nfo = &fdirectory[locl];
 	if (dropextras) {
 	  /* none of this stuff inside BSAs! */
 	  if (!o && oarchive && firsttime) {
@@ -761,6 +821,9 @@ private:
   }
 
   void DirectoryFromFiles(int io = 0) {
+    if (warmup)
+      return;
+
     wxBusyCursor busy;
     wxTreeItemId root;
 
@@ -922,6 +985,10 @@ private:
     RegSetKeyValue(Settings, "Unselect", "Extras", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
   }
 
+  void ChangeLogFile(wxCommandEvent& event) {
+    RegSetKeyValue(Settings, NULL, "Logging", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
+  }
+
   void ChangeRecursion(wxCommandEvent& event) {
     RegSetKeyValue(Settings, NULL, "Show Recursive", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
 
@@ -939,6 +1006,33 @@ private:
   }
 
   void ChangeTreeItem(const char *basedir, int op = 0) {
+    wxBusyCursor wait;
+//  BOStatusBar->SetStatusText(wxT("Running ..."), 0);
+
+    if (op != 0) {
+      size_t n = ldirectory.size();
+      while (n-- > 0) {
+	iomap::iterator walk = ldirectory[n];
+
+	/* apply operation locally */
+	bool selected = 
+	  op == 2 ? false :
+	  op == 1 ? true  : walk->second.selected;
+
+	/**/ if ( selected && !walk->second.selected)
+	  iactives++;
+	else if (!selected &&  walk->second.selected)
+	  iactives--;
+
+	walk->second.selected = selected;
+
+	/* change the item */
+	BOArchiveList->Check(n, walk->second.selected && walk->second.iex);
+      }
+
+      return;
+    }
+
     wxFont fnt = BOArchiveList->GetFont();
     const wxNativeFontInfo *fni = fnt.GetNativeFontInfo();
     wxNativeFontInfo sni = *fni; sni.lf.lfStrikeOut = TRUE;
@@ -1255,10 +1349,6 @@ public:
 	bool docopy = true;
 	bool iszero = !iinfo.io_size;
 
-	/* skip unselected ones (iactive is altered by the selection) */
-	if (!fdirectory[lcname].selected)
-	  return;
-
 	/* strip trailing slash */
 	if (!(fle = strrchr(inname, '/')))
 	  if (!(fle = strrchr(inname, '\\')))
@@ -1266,7 +1356,11 @@ public:
 
 	fle += 1;
 	if (stristr(fle, "thumbs.db"))
-	  docopy = false;
+	  return;
+
+	/* skip unselected ones (iactive is altered by the selection) */
+	if (!fdirectory[lcname].selected)
+	  return;
 
 	if (!docopy)
 	  prog->SetProgress(lcname, iprogres++);
@@ -1301,7 +1395,7 @@ public:
 	if (docopy && ouname && !simulation) {
 	  /* action required */
 	  if (stricmp(inname, ouname)) {
-//	    fprintf(stderr, "copying \"%s\"\n", fle);
+	    nfoprintf(stderr, "copying \"%s\"\n", lcname);
 
 	    /* TODO: nowait asynchronous */
 	    while (1) {
@@ -1310,6 +1404,7 @@ public:
 	      }
 	      catch(exception &e) {
 		if (strcmp(e.what(), "ExitThread")) {
+		  errprintf(stdout, e.what());
 		  if (skipbroken)
 		    break;
 
@@ -1330,6 +1425,10 @@ public:
 
 	    /* progress */
 	    processedinbytes += iinfo.io_size;
+	    prog->SetReport("Efficiency: %s to %s bytes", 
+	      processedinbytes, 
+	      processedinbytes - compresseddtbytes - virtualbsabytes
+	    );
 	    prog->SetProgress(
 	      processedinbytes, 
 	      processedinbytes - compresseddtbytes - virtualbsabytes
@@ -1409,20 +1508,54 @@ public:
     processedinbytes = 0;
     processedoubytes = 0;
 
-    prog->StartProgress(iactives); iprogres = 0;
+    /* count again */
+    iactives = 0;
+    iomap::iterator walk = fdirectory.begin();
+    while (walk != fdirectory.end()) {
+      if (walk->second.iex)
+	iactives += walk->second.selected ? 1 : 0;
+
+      walk++;
+    }
+
+    /* initialize progress-bar(s) */
+    prog->StartProgress(iactives + 1); iprogres = 0;
     prog->InitProgress("Copying file \"%s\":", "Efficiency:", 0, 1);
+
+    /* if we want a log, open it */
+    duplicates.clear();
+    if (BOSettings->FindChildItem(wxID_LOGF, NULL)->IsChecked()) {
+      wxString ph = BOOutText->GetValue();
+      wxFileName log(ph); log.ClearExt(); log.SetExt("log");
+      logfile = fopen(log.GetFullPath().data(), "wb");
+    }
 
     try {
       Process(BOInText->GetValue().data(), BOOutText->GetValue().data(), "");
     }
     catch(exception &e) {
       if (strcmp(e.what(), "ExitThread")) {
+	errprintf(stdout, e.what());
+
 	wxMessageDialog d(prog, e.what(), "BSAopt error");
 	d.ShowModal();
       }
+      else {
+	errprintf(stdout, "Canceled ...");
+      }
+
+      /* if we wanted a log, close it */
+      if (logfile)
+	fclose(logfile);
 
       prog->Leave(0);
       return;
+    }
+
+    /* if we wanted a log, close it */
+    if (logfile) {
+      summary(logfile, BOOutText->GetValue().data(), iactives);
+      fclose(logfile);
     }
 
     prog->Leave(666);
@@ -1433,6 +1566,7 @@ public:
   BSAoptGUI::BSAoptGUI(const wxString& title)
     : wxBSAopt(NULL, wxID_ANY, title) {
     gui = this;
+    warmup = true;
 
     Settings = 0;
     if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "Software\\Bethesda Softworks\\BSAopt", 0, KEY_READ | KEY_WRITE | KEY_WOW64_32KEY, &Settings) == ERROR_SUCCESS) {
@@ -1467,13 +1601,13 @@ public:
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPB, NULL)->Check(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, "Unselect", "Extras", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPX, NULL)->Check(TS[0] == '1'); TSL = 1023;
+    TS[0] = 0; RegGetValue(Settings, NULL, "Logging", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOSettings->FindChildItem(wxID_LOGF, NULL)->Check(TS[0] == '1'); TSL = 1023;
+
+    dropextras = (TS[0] == '1');
 
     TS[0] = 0; RegGetValue(Settings, NULL, "Show Recursive", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BORecursive->SetValue(TS[0] == '1'); TSL = 1023;
-    TS[0] = 0; RegGetValue(Settings, NULL, "Input Location", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOInText->SetValue(TS); TSL = 1023;
-    TS[0] = 0; RegGetValue(Settings, NULL, "Output Location", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOOutText->SetValue(TS); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, NULL, "Game", RRF_RT_REG_SZ, NULL, TS, &TSL);
     switch (TS[0]) {
       case '0': BOGame->FindChildItem(wxID_AUTO   , NULL)->Check(true); break;
@@ -1501,14 +1635,17 @@ public:
 	if (TS[0]) BOCompression->FindChildItem(wxID_BOZ10Q, NULL)->Check(TS[0] == '1'); TSL = 1023;
 	break;
     } TSL = 1023;
+    TS[0] = 0; RegGetValue(Settings, NULL, "Input Location", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOInText->SetValue(TS); TSL = 1023;
+    TS[0] = 0; RegGetValue(Settings, NULL, "Output Location", RRF_RT_REG_SZ, NULL, TS, &TSL);
+    if (TS[0]) BOOutText->SetValue(TS); TSL = 1023;
 
-    dropextras = (TS[0] == '1');
-
-    DirectoryFromFiles(0);
-    ResetHButtons();
+    warmup = false;
 
 //  BrowseIn(BOInText->GetValue());
 //  BrowseOut(BOOutText->GetValue());
+
+    ResetHButtons();
   }
 
   BSAoptGUI::~BSAoptGUI() {
@@ -1580,6 +1717,9 @@ bool BSAoptApp::OnInit()
   // and show it (the frames, unlike simple controls, are not shown when
   // created initially)
   frame->Show(true);
+//frame->Refresh();
+//frame->Update();
+  frame->DirectoryFromFiles(0);
 
   // success: wxApp::OnRun() will be called which will enter the main message
   // loop and the application will run. If we returned false here, the
@@ -1613,6 +1753,16 @@ void SetProgress(size_t din, size_t dou) {
 void SetTopic(const char *topic) {
   if (prg)
     prg->SetTopic(topic);
+}
+
+void SetReport(const char *status, size_t din, size_t dou) {
+  if (prg)
+    prg->SetReport(status, din, dou);
+}
+
+void SetReport(const char *status, size_t din, size_t dou, int dpl) {
+  if (prg)
+    prg->SetReport(status, din, dou, dpl);
 }
 
 DWORD __stdcall ConversionStart(LPVOID lp) {
