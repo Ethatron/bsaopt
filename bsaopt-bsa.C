@@ -99,7 +99,7 @@ unsigned int GenHashStr(string s) {
   unsigned int hash = 0;
 
   for (size_t i = 0; i < s.length(); i++) {
-    hash *= 0x1003f;
+    hash *= 0x1003F;
     hash += (unsigned char)s[i];
   }
 
@@ -472,8 +472,8 @@ public:
 	      if (folder.iinfo.hash != folder.oinfo.hash) {
 		sprintf(rerror, "BSA corrupt: Hash for folder \"%s\" in \"%s\" is different!\n", folder.data(), pathname);
 		nfoprintf(stderr, rerror);
-		if (!skiphashcheck)
-		  return shutdown(rerror);
+		if (!skiphashcheck && !RequestFeedback(rerror))
+		  return shutdown("ExitThread");
 	      }
 
 #if 0
@@ -518,8 +518,8 @@ public:
 		if (file.iinfo.hash != file.oinfo.hash) {
 		  sprintf(rerror, "BSA corrupt: Hash for file \"%s\" in \"%s\" is different!\n", file.data(), pathname);
 		  nfoprintf(stderr, rerror);
-		  if (!skiphashcheck)
-		    return shutdown(rerror);
+		  if (!skiphashcheck && !RequestFeedback(rerror))
+		    return shutdown("ExitThread");
 		}
 
 #if 0
@@ -622,6 +622,7 @@ public:
 		  bdy += (*ft).iinfo.sizeFlags & (~OB_BSAFILE_FLAG_ALLFLAGS);
 		  flc += 1;
 		}
+		/* this is a non-zero byte file! */
 		else if ((*ft).oinfo.sizeFlags || (*ft).iinfo.sizeFlags)
 		  return shutdown("Lost BSA-File reference!");
 		if (bdy > 0x7FFFFFFF)
@@ -831,6 +832,13 @@ public:
 		  /* copy with small buffer */
 		  if (diff)
 		    smallcopy(sze, ibsa, fbsa);
+		}
+		/* zero-byte files (no in, no out) */
+		else {
+		  /* fill file structure */
+		  fle.hash = (*ft)->oinfo.hash;
+		  fle.sizeFlags = (*ft)->oinfo.sizeFlags;
+		  fle.offset = ftell(fbsa);
 		}
 
 		/* revoke individual-compressed flag */

@@ -166,6 +166,7 @@ void SetProgress(size_t din, size_t dou);
 void SetTopic(const char *topic);
 void SetReport(const char *status, size_t din, size_t dou);
 void SetReport(const char *status, size_t din, size_t dou, int dpl);
+bool RequestFeedback(const char *question);
 
 #include "bsaopt-io.C"
 
@@ -319,22 +320,22 @@ public:
     char tmp[256], tmpi[256], tmpo[256];
 
     /**/ if (din > 1000 * 1000 * 1000)
-      sprintf(tmpi, "%d.%03d.%03d.%03d", ((din / 1000) / 1000) / 1000, ((din / 1000) / 1000) % 1000, (din / 1000) % 1000, din % 1000);
+      sprintf(tmpi, "%d.%03d.%03d.%03d", (int)(((din / 1000) / 1000) / 1000), (int)(((din / 1000) / 1000) % 1000), (int)((din / 1000) % 1000), (int)(din % 1000));
     else if (din > 1000 * 1000)
-      sprintf(tmpi, "%d.%03d.%03d", (din / 1000) / 1000, (din / 1000) % 1000, din % 1000);
+      sprintf(tmpi, "%d.%03d.%03d", (int)((din / 1000) / 1000), (int)((din / 1000) % 1000), (int)(din % 1000));
     else if (din > 1000)
-      sprintf(tmpi, "%d.%03d", din / 1000, din % 1000);
+      sprintf(tmpi, "%d.%03d", (int)(din / 1000), (din % 1000));
     else 
-      sprintf(tmpi, "%d", din % 1000);
+      sprintf(tmpi, "%d", (int)(din % 1000));
 
     /**/ if (dou > 1000 * 1000 * 1000)
-      sprintf(tmpo, "%d.%03d.%03d.%03d", ((dou / 1000) / 1000) / 1000, ((dou / 1000) / 1000) % 1000, (dou / 1000) % 1000, dou % 1000);
+      sprintf(tmpo, "%d.%03d.%03d.%03d", (int)(((dou / 1000) / 1000) / 1000), (int)(((dou / 1000) / 1000) % 1000), (int)((dou / 1000) % 1000), (int)(dou % 1000));
     else if (dou > 1000 * 1000)
-      sprintf(tmpo, "%d.%03d.%03d", (dou / 1000) / 1000, (dou / 1000) % 1000, dou % 1000);
+      sprintf(tmpo, "%d.%03d.%03d", (int)((dou / 1000) / 1000), (int)((dou / 1000) % 1000), (int)(dou % 1000));
     else if (dou > 1000)
-      sprintf(tmpo, "%d.%03d", dou / 1000, dou % 1000);
+      sprintf(tmpo, "%d.%03d", (int)(dou / 1000), (dou % 1000));
     else 
-      sprintf(tmpo, "%d", dou % 1000);
+      sprintf(tmpo, "%d", (int)(dou % 1000));
 
     if (dpl < 0)
       sprintf(tmp, status, tmpi, tmpo);
@@ -785,12 +786,10 @@ private:
 	if (dropextras) {
 	  /* none of this stuff inside BSAs! */
 	  if (!o && oarchive && firsttime) {
-	    if (isext(fle, "esp"))
-	      nfo->selected = false;
-	    if (isext(fle, "pdf"))
-	      nfo->selected = false;
-	    if (isext(fle, "psd"))
-	      nfo->selected = false;
+	    if (isext(fle, "esp")) nfo->selected = false;
+	    if (isext(fle, "esm")) nfo->selected = false;
+	    if (isext(fle, "pdf")) nfo->selected = false;
+	    if (isext(fle, "psd")) nfo->selected = false;
 	  }
 
 //	  if (!docopy)
@@ -823,6 +822,12 @@ private:
   void DirectoryFromFiles(int io = 0) {
     if (warmup)
       return;
+
+    skipexisting  = BOSettings->FindChildItem(wxID_SKIPE, NULL)->IsChecked();
+    skipnewer     = BOSettings->FindChildItem(wxID_SKIPN, NULL)->IsChecked();
+    skiphashcheck = BOSettings->FindChildItem(wxID_SKIPC, NULL)->IsChecked();
+    skipbroken    = BOSettings->FindChildItem(wxID_SKIPB, NULL)->IsChecked();
+    processhidden = BOSettings->FindChildItem(wxID_SKIPH, NULL)->IsChecked();
 
     wxBusyCursor busy;
     wxTreeItemId root;
@@ -895,8 +900,10 @@ private:
 //    }
     }
     catch(exception &e) {
-      wxMessageDialog d(this, e.what(), "BSAopt error");
-      d.ShowModal();
+      if (strcmp(e.what(), "ExitThread")) {
+	wxMessageDialog d(this, e.what(), "BSAopt error");
+	d.ShowModal();
+      }
     }
 
     RefreshDirectory(root);
@@ -1560,7 +1567,14 @@ public:
 
     prog->Leave(666);
   }
-private:
+
+  bool RequestFeedback(const char *question) {
+    wxMessageDialog d(prg ? (wxWindow *)prg : (wxWindow *)this, question, "BSAopt", wxOK | wxCANCEL | wxCENTRE);
+    int ret = d.ShowModal();
+    if (ret == wxID_CANCEL)
+      return false;
+    return true;
+  }
 
 public:
   BSAoptGUI::BSAoptGUI(const wxString& title)
@@ -1596,15 +1610,13 @@ public:
     TS[0] = 0; RegGetValue(Settings, "Skip", "Hidden", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPH, NULL)->Check(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, "Skip", "Hash", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPC, NULL)->Check(TS[0] == '1'); TSL = 1023;
+    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPC, NULL)->Check(TS[0] == '1'); TSL = 1023; skiphashcheck = (TS[0] == '1');
     TS[0] = 0; RegGetValue(Settings, "Skip", "Broken", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPB, NULL)->Check(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, "Unselect", "Extras", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPX, NULL)->Check(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, NULL, "Logging", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOSettings->FindChildItem(wxID_LOGF, NULL)->Check(TS[0] == '1'); TSL = 1023;
-
-    dropextras = (TS[0] == '1');
+    if (TS[0]) BOSettings->FindChildItem(wxID_LOGF, NULL)->Check(TS[0] == '1'); TSL = 1023; dropextras = (TS[0] == '1');
 
     TS[0] = 0; RegGetValue(Settings, NULL, "Show Recursive", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BORecursive->SetValue(TS[0] == '1'); TSL = 1023;
@@ -1763,6 +1775,12 @@ void SetReport(const char *status, size_t din, size_t dou) {
 void SetReport(const char *status, size_t din, size_t dou, int dpl) {
   if (prg)
     prg->SetReport(status, din, dou, dpl);
+}
+
+bool RequestFeedback(const char *question) {
+  if (gui)
+    return gui->RequestFeedback(question);
+  return false;
 }
 
 DWORD __stdcall ConversionStart(LPVOID lp) {
