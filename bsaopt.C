@@ -29,6 +29,9 @@
  * version of this file under either the MPL or the LGPL License."
  */
 
+#define	_CRT_SECURE_NO_WARNINGS
+#define	_CRT_NONSTDC_NO_DEPRECATE
+
 #include <string.h>
 #include <algorithm>
 #include <string>
@@ -38,9 +41,6 @@
 #include <vector>
 
 using namespace std;
-
-#define	_CRT_SECURE_NO_WARNINGS
-#define	_CRT_NONSTDC_NO_DEPRECATE
 
 #include <assert.h>
 #include <string.h>
@@ -260,63 +260,112 @@ class BSAoptPrg; class BSAoptPrg *prg;
 class BSAoptPrg : public wxProgress {
 
 private:
+  wxEventType evtProgress;
+  int idProgress;
+
+  class ProgressEvent: public wxCommandEvent {
+public:
+    ProgressEvent(int id, const wxEventType& event_type) : wxCommandEvent(event_type, id) { memset(&state, 0, sizeof(state)); }
+    ProgressEvent(const ProgressEvent& event) : wxCommandEvent(event) { memcpy(&state, &event.state, sizeof(state)); }
+
+    wxEvent* Clone() const { return new ProgressEvent(*this); }
+
+public:
+    struct {
+      unsigned int mask; 
+
+      int taskR; int taskV;
+      int effcR; int effcV;
+      char subjS[256];
+      char reptS[256];
+    } state;
+
+    void SetTaskRange(int r) { state.mask |= 1; state.taskR = r; }
+    void SetTaskValue(int v) { state.mask |= 2; state.taskV = v; }
+    void SetEffcRange(int r) { state.mask |= 4; state.effcR = r; }
+    void SetEffcValue(int v) { state.mask |= 8; state.effcV = v; }
+    void SetSubject(const char *s) { state.mask |= 16; strcpy(state.subjS, s); }
+    void SetReport(const char *s) { state.mask |= 32; strcpy(state.reptS, s); }
+  };
+
+  typedef void (wxEvtHandler::*ProgressEventFunction)(ProgressEvent &);
+
+  /* called from Progress-thread */
+  void Progress(ProgressEvent &evt) {
+    if (evt.state.mask &  1) BOTask->SetRange(evt.state.taskR);
+    if (evt.state.mask &  2) BOTask->SetValue(evt.state.taskV);
+    if (evt.state.mask &  4) BOEfficiency->SetRange(evt.state.effcR);
+    if (evt.state.mask &  8) BOEfficiency->SetValue(evt.state.effcV);
+    if (evt.state.mask & 16) BOSubject->SetLabel(evt.state.subjS);
+    if (evt.state.mask & 32) BOReport->SetLabel(evt.state.reptS);
+  }
+
   const char *lastpa;
   const char *lastpb;
 
 public:
   /* all executed by Async-thread */
   void StartProgress(int rng) {
-    Wait();
+    Wait(); ProgressEvent event(idProgress, evtProgress);
 
-    BOTask->SetRange(rng);
+    event.SetTaskRange(rng);
 
-//  Update();
+    wxPostEvent(this, event);
   }
 
   void InitProgress(const char *patterna, const char *patternb, int dne, int rng) {
-    Wait();
+    Wait(); ProgressEvent event(idProgress, evtProgress);
 
     char tmp[256];
 
-    if (patterna) { sprintf(tmp, lastpa = patterna, "..."); BOSubject->SetLabel(tmp); }
-    if (patternb) { sprintf(tmp, lastpb = patternb, "..."); BOReport ->SetLabel(tmp); }
+    if (patterna) { sprintf(tmp, lastpa = patterna, "..."); event.SetSubject(tmp); }
+    if (patternb) { sprintf(tmp, lastpb = patternb, "..."); event.SetReport(tmp); }
 
-    BOTask->SetValue(dne);
+    event.SetTaskValue(dne);
+    event.SetEffcRange(rng);
+    event.SetEffcValue(rng);
 
-    BOEfficiency->SetRange(rng);
-    BOEfficiency->SetValue(rng);
-
-//  Update();
+    wxPostEvent(this, event);
   }
 
   int range1, value1;
   int range2, value2;
 
   void SetProgress(const char *str, int dne) {
-    Wait();
+    Wait(); ProgressEvent event(idProgress, evtProgress);
 
     char tmp[256];
 
-    if (lastpa) { sprintf(tmp, lastpa, str  ); BOSubject->SetLabel(tmp); }
-//  if (lastpb) { sprintf(tmp, lastpb, "..."); BOReport ->SetLabel(tmp); }
+    if (lastpa) { sprintf(tmp, lastpa, str  ); event.SetSubject(tmp); }
+//  if (lastpb) { sprintf(tmp, lastpb, "..."); event.SetReport(tmp); }
 
-    BOTask->SetValue(dne);
+    event.SetTaskValue(dne);
+
+    wxPostEvent(this, event);
   }
 
   void SetProgress(size_t din, size_t dou) {
-    Wait();
+    Wait(); ProgressEvent event(idProgress, evtProgress);
 
     int rng = (din ? ((unsigned __int64)dou * 0xFFFF) / din : 0);
 
-    BOEfficiency->SetRange(0xFFFF);
-    BOEfficiency->SetValue(rng);
+    event.SetEffcRange(0xFFFF);
+    event.SetEffcValue(rng);
+
+    wxPostEvent(this, event);
   }
 
   void SetTopic(const char *topic) {
-    BOSubject->SetLabel(topic);
+    Wait(); ProgressEvent event(idProgress, evtProgress);
+
+    event.SetSubject(topic);
+
+    wxPostEvent(this, event);
   }
 
   void SetReport(const char *status, size_t din, size_t dou, int dpl = -1) {
+    Wait(); ProgressEvent event(idProgress, evtProgress);
+
     char tmp[256], tmpi[256], tmpo[256];
 
     /**/ if (din > 1000 * 1000 * 1000)
@@ -342,7 +391,9 @@ public:
     else
       sprintf(tmp, status, tmpi, tmpo, dpl);
 
-    BOReport->SetLabel(tmp);
+    event.SetReport(tmp);
+
+    wxPostEvent(this, event);
   }
 
   void PollProgress() {
@@ -493,6 +544,15 @@ public:
     /* Connect to event handler that will make us close */
     Connect(wxID_ANY, evtLeave,
       (wxObjectEventFunction)(wxEventFunction)(wxCommandEventFunction)wxStaticCastEvent(LeaveEventFunction, &BSAoptPrg::Leave),
+      NULL,
+      this);
+
+    evtProgress = wxNewEventType();
+    idProgress = wxNewId();
+
+    /* Connect to event handler that will make us close */
+    Connect(wxID_ANY, evtProgress,
+      (wxObjectEventFunction)(wxEventFunction)(wxCommandEventFunction)wxStaticCastEvent(ProgressEventFunction, &BSAoptPrg::Progress),
       NULL,
       this);
 
@@ -767,7 +827,6 @@ private:
       /* input: file */
       else {
 	const char *fle;
-	struct iodir *dir;
 	bool dealloc = false;
 	bool docopy = true;
 	bool iszero = !info.io_size;
@@ -1287,7 +1346,7 @@ public:
 
 	      char *ninname = (char *)malloc(ilen + 1 + et->namelength + 1);
 	      char *nouname = (char *)malloc(olen + 1 + et->namelength + 1);
-	      char *nlcname = (char *)malloc(olen + 1 + et->namelength + 1);
+	      char *nlcname = (char *)malloc(llen + 1 + et->namelength + 1);
 
 	      strcpy(ninname, inname);
 	      strcpy(nouname, ouname ? ouname : inname);
@@ -1614,9 +1673,9 @@ public:
     TS[0] = 0; RegGetValue(Settings, "Skip", "Broken", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOSettings->FindChildItem(wxID_SKIPB, NULL)->Check(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, "Unselect", "Extras", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPX, NULL)->Check(TS[0] == '1'); TSL = 1023;
+    if (TS[0]) BOSettings->FindChildItem(wxID_SKIPX, NULL)->Check(TS[0] == '1'); TSL = 1023; dropextras = (TS[0] == '1');
     TS[0] = 0; RegGetValue(Settings, NULL, "Logging", RRF_RT_REG_SZ, NULL, TS, &TSL);
-    if (TS[0]) BOSettings->FindChildItem(wxID_LOGF, NULL)->Check(TS[0] == '1'); TSL = 1023; dropextras = (TS[0] == '1');
+    if (TS[0]) BOSettings->FindChildItem(wxID_LOGF, NULL)->Check(TS[0] == '1'); TSL = 1023;
 
     TS[0] = 0; RegGetValue(Settings, NULL, "Show Recursive", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BORecursive->SetValue(TS[0] == '1'); TSL = 1023;
