@@ -1,8 +1,39 @@
+/* Version: MPL 1.1/LGPL 3.0
+ *
+ * "The contents of this file are subject to the Mozilla Public License
+ * Version 1.1 (the "License"); you may not use this file except in
+ * compliance with the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific language governing rights and limitations
+ * under the License.
+ *
+ * The Original Code is BSAopt.
+ *
+ * The Initial Developer of the Original Code is
+ * Ethatron <niels@paradice-insight.us>. Portions created by The Initial
+ * Developer are Copyright (C) 2011 The Initial Developer.
+ * All Rights Reserved.
+ *
+ * Alternatively, the contents of this file may be used under the terms
+ * of the GNU Library General Public License Version 3 license (the
+ * "LGPL License"), in which case the provisions of LGPL License are
+ * applicable instead of those above. If you wish to allow use of your
+ * version of this file only under the terms of the LGPL License and not
+ * to allow others to use your version of this file under the MPL,
+ * indicate your decision by deleting the provisions above and replace
+ * them with the notice and other provisions required by the LGPL License.
+ * If you do not delete the provisions above, a recipient may use your
+ * version of this file under either the MPL or the LGPL License."
+ */
 
+#define EXTRA_VERIFICATION
 #define REMOVE_DOUBLES
 #define	DEPEXT_ZLIB
 #define	DEPEXT_7ZIP
-#include "bsaopt-depext.C"
+#include "depext.C"
 
 int compresslevel = Z_BEST_SPEED;
 bool compressbsa = true;
@@ -18,6 +49,8 @@ char rerror[256];
 #include <algorithm>
 
 using namespace std;
+
+#include <assert.h>
 
 /* Default header data */
 #define MW_BSAHEADER_FILEID  0x00000100 //!< Magic for Morrowind BSA
@@ -397,18 +430,24 @@ public:
 
 	  if (fread(&header, 1, sizeof(header), ibsa) != sizeof(header))
 	    return shutdown("Can't read from the BSA!");
-	  if (fseek(ibsa, 0, SEEK_END))
+	  if (fseek(ibsa, 0L, SEEK_END))
 	    return shutdown("Can't read from the BSA!");
 
 	  sizefile = ftell(ibsa);
 
+	  size_t FolderFilePos =
+		header.FolderRecordOffset +
+		header.FolderCount * sizeof(OBBSAFolderInfo);
 	  size_t FolderFileBlob =
 	  	header.FolderCount * sizeof(char) +
 	  	header.FolderNameLength +
 		header.FileCount   * sizeof(OBBSAFileInfo);
 	  size_t EndOfDirectory =
 		header.FolderCount * sizeof(OBBSAFolderInfo) +
-		       FolderFileBlob +
+		FolderFileBlob +
+		header.FileNameLength;
+	  size_t FileNamePos =
+		EndOfDirectory -
 		header.FileNameLength;
 
 	  /* premature end-of-file */
@@ -435,6 +474,39 @@ public:
 	  fread(&dfmix[0], sizeof(char),
 	        FolderFileBlob, ibsa);
 
+#ifdef	EXTRA_VERIFICATION
+	  /* verify the header-offsets */
+	  int FolderNameLength = 0;
+	  int FolderNameCount = 0;
+	  vector<struct OBBSAFolderInfo>::iterator dd = dinfos.begin();
+	  for (dd = dinfos.begin(); dd != dinfos.end(); ++dd) {
+	    int len = *dfmix++;
+
+	    while (*dfmix++)
+	    FolderNameCount += 1;
+	    FolderNameCount += 1;
+	    FolderNameLength += len;
+
+	    dfmix += dd->fileCount * sizeof(OBBSAFileInfo);
+	  }
+
+	  /* in this case the directory isn't reliable, don't do anything and let it try to do what's possible */
+	  if (FolderNameLength != FolderNameCount) {
+	    if (skipbroken || !RequestFeedback("Sanity-check of the directory-names results negative! You likely identify names in bad shape in the listing and have to unselect them.\nContinue to salvage parts?"))
+	      return shutdown("ExitThread");
+	  }
+	  /* in this case the directory appears quite all right and we can correct the header-position */
+	  else if (FolderNameLength != header.FolderNameLength) {
+	    if (!skipbroken && !RequestFeedback("Sanity-check of the header results negative! You likely identify names in bad shape in the listing and have to unselect them.\nContinue to salvage parts?"))
+	      return shutdown("ExitThread");
+
+	    /* make the correction */
+	    fseek(ibsa, (long)FolderNameLength - (long)header.FolderNameLength, SEEK_CUR);
+	  }
+
+	  dfmix = &dfblob[0];
+#endif
+
 	  // file names
 	  vector<char> fnames(header.FileNameLength);
 	  char *fname = &fnames[0];
@@ -454,7 +526,7 @@ public:
 	    bsfolder folder;
 
 	    /* assign known data */
-	    size_t len = *dfmix++;
+	    int len = *dfmix++;
 	    folder.assign(dfmix);
 	    while (*dfmix++);
 	    folder.iinfo = *d;
@@ -708,7 +780,7 @@ public:
 		_header.FolderRecordOffset +
 		_header.FolderCount * sizeof(OBBSAFolderInfo) +
 		_header.FileNameLength +
-		(dfmix - &dfblob[0]);
+		(unsigned int)(dfmix - &dfblob[0]);
 
 	      /* assign known data */
 //	      memcpy(dinfos, &dir, sizeof(dir));
@@ -1747,7 +1819,7 @@ public:
       return file->ina;
   }
 
-  int seek(const bsfile *file, size_t offset, int origin) {
+  int seek(const bsfile *file, long offset, int origin) {
     int ola = 0, pos;
 
     /**/ if (file->oup) {
@@ -2156,7 +2228,7 @@ bool __stdcall feof_arc(void *file) {
   return r->arc->eof(r->file);
 }
 
-int __stdcall fseek_arc(void *file, size_t offset, int origin) {
+int __stdcall fseek_arc(void *file, long offset, int origin) {
   it_file_arc *r = (it_file_arc *)file;
   return r->arc->seek(r->file, offset, origin);
 }

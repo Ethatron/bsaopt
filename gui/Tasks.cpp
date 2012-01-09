@@ -7,6 +7,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 //
 
+#define	_CRT_SECURE_NO_WARNINGS
+#define	_CRT_NONSTDC_NO_DEPRECATE
+
 #include <windows.h>      // For common windows data types and function headers
 #define STRICT_TYPED_ITEMIDS
 #include <shlobj.h>

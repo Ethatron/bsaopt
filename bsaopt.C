@@ -168,7 +168,7 @@ void SetReport(const char *status, size_t din, size_t dou);
 void SetReport(const char *status, size_t din, size_t dou, int dpl);
 bool RequestFeedback(const char *question);
 
-#include "bsaopt-io.C"
+#include "io/io.C"
 
 extern LPSTR selected_string;
 extern long AskInput();
@@ -347,7 +347,7 @@ public:
   void SetProgress(size_t din, size_t dou) {
     Wait(); ProgressEvent event(idProgress, evtProgress);
 
-    int rng = (din ? ((unsigned __int64)dou * 0xFFFF) / din : 0);
+    int rng = (int)(din ? ((unsigned __int64)dou * 0xFFFF) / din : 0);
 
     event.SetEffcRange(0xFFFF);
     event.SetEffcValue(rng);
@@ -990,7 +990,7 @@ private:
     if (!filter.Compile(wildcard))
       filter.Compile("");
     else
-      RegSetKeyValue(Settings, NULL, "Filter", RRF_RT_REG_SZ, spat.data(), spat.length() + 1);
+      RegSetKeyValue(Settings, NULL, "Filter", RRF_RT_REG_SZ, spat.data(), (DWORD)spat.length() + 1);
 
     /* refresh file-list */
     ChangeTreeItem(currentpath.data());
@@ -1093,7 +1093,7 @@ private:
 	walk->second.selected = selected;
 
 	/* change the item */
-	BOArchiveList->Check(n, walk->second.selected && walk->second.iex);
+	BOArchiveList->Check((int)n, walk->second.selected && walk->second.iex);
       }
 
       return;
@@ -1635,6 +1635,17 @@ public:
     return true;
   }
 
+  void SetCommandLine(const char *in, const char *ou) {
+    warmup = true;
+
+    if (in) BOInText->SetValue(in);
+    if (ou) BOOutText->SetValue(ou);
+
+    warmup = false;
+
+    ResetHButtons();
+  }
+
 public:
   BSAoptGUI::BSAoptGUI(const wxString& title)
     : wxBSAopt(NULL, wxID_ANY, title) {
@@ -1725,6 +1736,9 @@ public:
   }
 };
 
+char *cmdIn = NULL;
+char *cmdOu = NULL;
+
 // ----------------------------------------------------------------------------
 // private classes
 // ----------------------------------------------------------------------------
@@ -1757,11 +1771,85 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance,
 			      wxCmdLineArgType lpCmdLine,
 			      int nCmdShow)
 {
-  ioinit();
+  int ret = 0;
 
-  int ret = wxEntry(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
+  {
+    // break the command line in words
+    char *cmdLine = strdup(lpCmdLine), *cL, *cN;
+    vector<char *> argv; int argc = 0; cL = cmdLine;
 
-  ioexit();
+    // argv[] must begin with the command itself
+    char PPath[256] = "";
+    char CPath[256] = "";
+    GetModuleFileName(0, PPath, sizeof(PPath) - 1);
+    GetCurrentDirectory(sizeof(CPath) - 1, CPath);
+
+    argv.push_back(PPath);
+
+    do {
+      if (cL[0] == '"') {
+	cL[0] = '\0', cL += 1;
+	if ((cN = strchr(cL + 0, '"'))) {
+	  cN[0] = '\0', cN += 1;
+	  if (cN[0])
+	    cN[0] = '\0', cN += 1;
+	}
+      }
+      else {
+	if ((cN = strchr(cL + 0, ' ')))
+	  cN[0] = '\0', cN += 1;
+      }
+
+      argv.push_back(cL);
+    } while ((cL = cN) && cL[0]);
+
+    // argv[] must be NULL-terminated
+    argc = (int)argv.size();
+    argv.push_back(NULL);
+
+    if (argc > 1) {
+      cmdIn = argv[1];
+
+      /* we want absolute directories */
+      if ((cmdIn[1] != ':') &&
+	  (cmdIn[1] != '\\')) {
+	cmdIn = (char *)malloc(strlen(CPath) + 1 + strlen(argv[1]) + 1);
+
+	strcpy(cmdIn, CPath);
+	strcat(cmdIn, "\\");
+	strcat(cmdIn, argv[1]);
+      }
+    }
+
+    if (argc > 2) {
+      cmdOu = argv[2];
+
+      /* we want absolute directories */
+      if ((cmdOu[1] != ':') &&
+	  (cmdOu[1] != '\\')) {
+	cmdIn = (char *)malloc(strlen(CPath) + 1 + strlen(argv[2]) + 1);
+
+	strcpy(cmdOu, CPath);
+	strcat(cmdOu, "\\");
+	strcat(cmdOu, argv[1]);
+      }
+    }
+
+    {
+      ioinit();
+
+      ret = wxEntry(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
+
+      ioexit();
+    }
+
+    if ((argc > 1) && (cmdIn != argv[1]))
+      free(cmdIn);
+    if ((argc > 2) && (cmdOu != argv[2]))
+      free(cmdOu);
+
+    free(cmdLine);
+  }
 
   return ret;
 }
@@ -1787,9 +1875,11 @@ bool BSAoptApp::OnInit()
 
   // and show it (the frames, unlike simple controls, are not shown when
   // created initially)
+  frame->SetIcon(wxICON(IDI_MAIN_ICON));
   frame->Show(true);
 //frame->Refresh();
 //frame->Update();
+  frame->SetCommandLine(cmdIn, cmdOu);
   frame->DirectoryFromFiles(0);
 
   // success: wxApp::OnRun() will be called which will enter the main message
