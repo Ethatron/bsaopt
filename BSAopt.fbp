@@ -1077,7 +1077,7 @@
                                                                         <event name="OnEraseBackground"></event>
                                                                         <event name="OnKeyDown"></event>
                                                                         <event name="OnKeyUp"></event>
-                                                                        <event name="OnKillFocus"></event>
+                                                                        <event name="OnKillFocus">TypedInDone</event>
                                                                         <event name="OnLeaveWindow"></event>
                                                                         <event name="OnLeftDClick"></event>
                                                                         <event name="OnLeftDown"></event>
@@ -1274,7 +1274,7 @@
                                                                 <event name="OnTreeEndDrag"></event>
                                                                 <event name="OnTreeEndLabelEdit"></event>
                                                                 <event name="OnTreeGetInfo"></event>
-                                                                <event name="OnTreeItemActivated"></event>
+                                                                <event name="OnTreeItemActivated">ActivateTreeItem</event>
                                                                 <event name="OnTreeItemCollapsed"></event>
                                                                 <event name="OnTreeItemCollapsing"></event>
                                                                 <event name="OnTreeItemExpanded"></event>
@@ -2022,7 +2022,7 @@
                                                                                 <event name="OnEraseBackground"></event>
                                                                                 <event name="OnKeyDown"></event>
                                                                                 <event name="OnKeyUp"></event>
-                                                                                <event name="OnKillFocus"></event>
+                                                                                <event name="OnKillFocus">TypedOutDone</event>
                                                                                 <event name="OnLeaveWindow"></event>
                                                                                 <event name="OnLeftDClick"></event>
                                                                                 <event name="OnLeftDown"></event>

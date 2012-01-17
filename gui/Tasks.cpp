@@ -310,8 +310,52 @@ HRESULT CDialogEventHandler_CreateInstance(REFIID riid, void **ppv)
 
 /* BSAopt Snippets ***************************************************************************************************/
 
+#include <sys/stat.h>
+//#include "../io/io.h"
+
+extern char *infile;
+extern char *outfile;
+
+void SetPresel(const char *presel, IFileDialog *pfd) {
+  LPCWSTR f = NULL;
+  const char *fname = "";
+  IShellItem *ditem = NULL; 
+  if (presel) {
+    if (PathIsDirectory(presel)) {
+      SHCreateItemFromParsingName(f = AnsiToUnicode((LPSTR)presel), NULL, IID_PPV_ARGS(&ditem));
+    }
+    else {
+      static char tmp[MAX_PATH]; strcpy(tmp, presel);
+      PTSTR ext = PathFindExtension(tmp);
+      PTSTR nam = PathFindFileName(tmp);
+      if (nam > tmp) {
+	nam[-1] = '\0';
+	fname = nam;
+
+	SHCreateItemFromParsingName(f = AnsiToUnicode((LPSTR)tmp), NULL, IID_PPV_ARGS(&ditem));
+      }
+      else
+	fname = tmp;
+    }
+  }
+
+  if (f)
+    delete[] f; f = NULL;
+  if (fname)
+    pfd->SetFileName(f = AnsiToUnicode((LPSTR)fname));
+  if (ditem)
+    pfd->SetFolder  (                         ditem );
+
+  if (f)
+    delete[] f; f = NULL;
+  if (ditem)
+    ditem->Release();
+}
+
+/* BSAopt Snippets ***************************************************************************************************/
+
 // This code snippet demonstrates how to work with the BSAopt interface
-HRESULT AskInput()
+HRESULT AskInput(const char *presel)
 {
   if (selected_string) {
     delete[] selected_string;
@@ -350,6 +394,8 @@ HRESULT AskInput()
 	      pfdc->AddPushButton(c_idFolder, L" Use Folder ");
 	      pfdc->Release();
 	    }
+
+	    SetPresel(presel, pfd);
 
 	    // Set the file types to display only. Notice that, this is a 1-based array.
 	    hr = pfd->SetFileTypes(ARRAYSIZE(c_rgLoadTypes), c_rgLoadTypes);
@@ -414,7 +460,7 @@ HRESULT AskInput()
 }
 
 // This code snippet demonstrates how to work with the BSAopt interface
-HRESULT AskOutput()
+HRESULT AskOutput(const char *presel)
 {
   if (selected_string) {
     delete[] selected_string;
@@ -453,6 +499,8 @@ HRESULT AskOutput()
 	      pfdc->AddPushButton(c_idFolder, L" Use Folder ");
 	      pfdc->Release();
 	    }
+
+	    SetPresel(presel, pfd);
 
 	    // Set the file types to display only. Notice that, this is a 1-based array.
 	    hr = pfd->SetFileTypes(ARRAYSIZE(c_rgSaveTypes), c_rgSaveTypes);
@@ -528,7 +576,7 @@ HRESULT Copy()
 {
   HRESULT hr;
 
-  hr = AskInput();
+  hr = AskInput(NULL);
   if (SUCCEEDED(hr)) {
     /* look what we'v got
     char *infile, *outfile; */
@@ -552,7 +600,7 @@ HRESULT Copy()
     else if (!stricmp("wav", extp)) c_rgSaveTypes[1] = c_rgLoadTypes[11], c_rgSaveNums++, defidx = 2;
     else                            c_rgSaveTypes[1] = c_rgLoadTypes[16], c_rgSaveNums++, defidx = 2;
 
-    hr = AskOutput();
+    hr = AskOutput(NULL);
     if (SUCCEEDED(hr)) {
       outfile = strdup(selected_string);
 

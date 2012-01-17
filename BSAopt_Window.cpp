@@ -284,8 +284,10 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	this->Connect( BOUnselectExtras->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeUnselectExtras ) );
 	this->Connect( BOLogfile->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeLogFile ) );
 	BOInput->Connect( wxEVT_COMMAND_DIRPICKER_CHANGED, wxFileDirPickerEventHandler( wxBSAopt::ChangePluginDir ), NULL, this );
+	BOInText->Connect( wxEVT_KILL_FOCUS, wxFocusEventHandler( wxBSAopt::TypedInDone ), NULL, this );
 	BOInText->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedIn ), NULL, this );
 	BOInBrowse->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseIn ), NULL, this );
+	BOArchiveTree->Connect( wxEVT_COMMAND_TREE_ITEM_ACTIVATED, wxTreeEventHandler( wxBSAopt::ActivateTreeItem ), NULL, this );
 	BOArchiveTree->Connect( wxEVT_COMMAND_TREE_SEL_CHANGED, wxTreeEventHandler( wxBSAopt::ChangeTreeItem ), NULL, this );
 	BOFilter->Connect( wxEVT_COMMAND_COMBOBOX_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeFilter ), NULL, this );
 	BOFilterApply->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::ApplyFilter ), NULL, this );
@@ -293,6 +295,7 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	this->Connect( wxID_CLEAR, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( wxBSAopt::ClearFileList ) );
 	BORecursive->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( wxBSAopt::ChangeRecursion ), NULL, this );
 	BOArchiveList->Connect( wxEVT_COMMAND_CHECKLISTBOX_TOGGLED, wxCommandEventHandler( wxBSAopt::ChangeSelectedFiles ), NULL, this );
+	BOOutText->Connect( wxEVT_KILL_FOCUS, wxFocusEventHandler( wxBSAopt::TypedOutDone ), NULL, this );
 	BOOutText->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedOut ), NULL, this );
 	BOOutBrowse->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseOut ), NULL, this );
 	BOConvert->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::ConversionStart ), NULL, this );
@@ -314,8 +317,10 @@ wxBSAopt::~wxBSAopt()
 	this->Disconnect( wxID_SKIPX, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeUnselectExtras ) );
 	this->Disconnect( wxID_LOGF, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeLogFile ) );
 	BOInput->Disconnect( wxEVT_COMMAND_DIRPICKER_CHANGED, wxFileDirPickerEventHandler( wxBSAopt::ChangePluginDir ), NULL, this );
+	BOInText->Disconnect( wxEVT_KILL_FOCUS, wxFocusEventHandler( wxBSAopt::TypedInDone ), NULL, this );
 	BOInText->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedIn ), NULL, this );
 	BOInBrowse->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseIn ), NULL, this );
+	BOArchiveTree->Disconnect( wxEVT_COMMAND_TREE_ITEM_ACTIVATED, wxTreeEventHandler( wxBSAopt::ActivateTreeItem ), NULL, this );
 	BOArchiveTree->Disconnect( wxEVT_COMMAND_TREE_SEL_CHANGED, wxTreeEventHandler( wxBSAopt::ChangeTreeItem ), NULL, this );
 	BOFilter->Disconnect( wxEVT_COMMAND_COMBOBOX_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeFilter ), NULL, this );
 	BOFilterApply->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::ApplyFilter ), NULL, this );
@@ -323,6 +328,7 @@ wxBSAopt::~wxBSAopt()
 	this->Disconnect( wxID_CLEAR, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( wxBSAopt::ClearFileList ) );
 	BORecursive->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( wxBSAopt::ChangeRecursion ), NULL, this );
 	BOArchiveList->Disconnect( wxEVT_COMMAND_CHECKLISTBOX_TOGGLED, wxCommandEventHandler( wxBSAopt::ChangeSelectedFiles ), NULL, this );
+	BOOutText->Disconnect( wxEVT_KILL_FOCUS, wxFocusEventHandler( wxBSAopt::TypedOutDone ), NULL, this );
 	BOOutText->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedOut ), NULL, this );
 	BOOutBrowse->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseOut ), NULL, this );
 	BOConvert->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::ConversionStart ), NULL, this );

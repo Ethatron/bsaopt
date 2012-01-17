@@ -107,8 +107,10 @@ class wxBSAopt : public wxFrame
 		virtual void ChangeUnselectExtras( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeLogFile( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangePluginDir( wxFileDirPickerEvent& event ) { event.Skip(); }
+		virtual void TypedInDone( wxFocusEvent& event ) { event.Skip(); }
 		virtual void TypedIn( wxCommandEvent& event ) { event.Skip(); }
 		virtual void BrowseIn( wxCommandEvent& event ) { event.Skip(); }
+		virtual void ActivateTreeItem( wxTreeEvent& event ) { event.Skip(); }
 		virtual void ChangeTreeItem( wxTreeEvent& event ) { event.Skip(); }
 		virtual void ChangeFilter( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ApplyFilter( wxCommandEvent& event ) { event.Skip(); }
@@ -116,6 +118,7 @@ class wxBSAopt : public wxFrame
 		virtual void ClearFileList( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeRecursion( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeSelectedFiles( wxCommandEvent& event ) { event.Skip(); }
+		virtual void TypedOutDone( wxFocusEvent& event ) { event.Skip(); }
 		virtual void TypedOut( wxCommandEvent& event ) { event.Skip(); }
 		virtual void BrowseOut( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ConversionStart( wxCommandEvent& event ) { event.Skip(); }

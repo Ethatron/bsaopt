@@ -171,8 +171,8 @@ bool RequestFeedback(const char *question);
 #include "io/io.C"
 
 extern LPSTR selected_string;
-extern long AskInput();
-extern long AskOutput();
+extern long AskInput(const char *presel);
+extern long AskOutput(const char *presel);
 
 // ----------------------------------------------------------------------------
 // headers
@@ -219,8 +219,8 @@ public:
 
   bool skip, selected;
 
-  struct ioinfo in; bool iex; 
-  struct ioinfo ou; bool oex; 
+  struct ioinfo in; bool iex;
+  struct ioinfo ou; bool oex;
 
 #if 0
   static bool compare(
@@ -236,8 +236,8 @@ class iost {
 public:
   iost() { imsk = omsk /*= icnt = ocnt*/ = 0; }
 
-  int imsk; //int icnt; 
-  int omsk; //int ocnt; 
+  int imsk; //int icnt;
+  int omsk; //int ocnt;
 
 #if 0
   static bool compare(
@@ -272,7 +272,7 @@ public:
 
 public:
     struct {
-      unsigned int mask; 
+      unsigned int mask;
 
       int taskR; int taskV;
       int effcR; int effcV;
@@ -374,7 +374,7 @@ public:
       sprintf(tmpi, "%d.%03d.%03d", (int)((din / 1000) / 1000), (int)((din / 1000) % 1000), (int)(din % 1000));
     else if (din > 1000)
       sprintf(tmpi, "%d.%03d", (int)(din / 1000), (din % 1000));
-    else 
+    else
       sprintf(tmpi, "%d", (int)(din % 1000));
 
     /**/ if (dou > 1000 * 1000 * 1000)
@@ -383,7 +383,7 @@ public:
       sprintf(tmpo, "%d.%03d.%03d", (int)((dou / 1000) / 1000), (int)((dou / 1000) % 1000), (int)(dou % 1000));
     else if (dou > 1000)
       sprintf(tmpo, "%d.%03d", (int)(dou / 1000), (dou % 1000));
-    else 
+    else
       sprintf(tmpo, "%d", (int)(dou % 1000));
 
     if (dpl < 0)
@@ -505,12 +505,15 @@ public:
   };
 
   typedef void (wxEvtHandler::*LeaveEventFunction)(LeaveEvent &);
-  
+
   /* called from outside-thread */
   int Enter(LPTHREAD_START_ROUTINE routine) {
     if ((async = CreateThread(NULL, 0, routine, this, 0, NULL)) == INVALID_HANDLE_VALUE)
       return 0;
+
+    /* rebase the created thread, and possibly spawned OpenMP ones (via process) */
     SetThreadPriority(async, THREAD_PRIORITY_BELOW_NORMAL);
+    SetPriorityClass(GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS);
 
     return ShowModal();
   }
@@ -615,6 +618,18 @@ private:
       (BOInText ->GetValue() != "") &&
       (BOOutText->GetValue() != "")
     );
+
+    iarchive = isarchive(BOInText ->GetValue().data());
+    oarchive = isarchive(BOOutText->GetValue().data());
+
+    /**/ if ( iarchive &&  oarchive)
+      BOConvert->SetLabel("Convert");
+    else if (!iarchive && !oarchive)
+      BOConvert->SetLabel("Copy");
+    else if ( iarchive && !oarchive)
+      BOConvert->SetLabel("Unpack");
+    else if (!iarchive &&  oarchive)
+      BOConvert->SetLabel("Pack");
   }
 
   /* ---------------------------------------------------------------------------- */
@@ -765,7 +780,7 @@ private:
 
 	/* the in and output directories are parallel-roots */
 	wxTreeItemId entry = (!lvl ? parent : ScanEntry(parent, locl, dle));
-	
+
 	/* walk */
 	struct iodir *dir;
 	if ((dir = ioopendir(name))) {
@@ -896,51 +911,88 @@ private:
 
     if (!io) {
       iactives =
-      oactives = 0;
+	oactives = 0;
 
+      ddirectory.clear();
       fdirectory.clear();
     }
     else if (io == 1) {
       iactives = 0;
 
-      iomap newmap;
-      iomap::iterator walk = fdirectory.begin();
-      while (walk != fdirectory.end()) {
-	if (walk->second.oex) {
-	  ioio *m = &newmap[walk->first];
+      {
+	iomap newmap;
+	iomap::iterator walk = fdirectory.begin();
+	while (walk != fdirectory.end()) {
+	  if (walk->second.oex) {
+	    ioio *m = &newmap[walk->first];
 
-	  m->skip     = walk->second.skip;
-	  m->selected = walk->second.selected;
+	    m->skip     = walk->second.skip;
+	    m->selected = walk->second.selected;
 
-	  m->oex = walk->second.oex;
-	  m->ou  = walk->second.ou;
+	    m->oex = walk->second.oex;
+	    m->ou  = walk->second.ou;
+	  }
+
+	  walk++;
 	}
 
-	walk++;
+	fdirectory = newmap;
       }
 
-      fdirectory = newmap;
+      {
+	stmap newmap;
+	stmap::iterator walk = ddirectory.begin();
+	while (walk != ddirectory.end()) {
+	  if (walk->second.omsk & OEX) {
+	    iost *m = &newmap[walk->first];
+
+	    m->omsk = walk->second.omsk;
+	  }
+
+	  walk++;
+	}
+
+	ddirectory = newmap;
+      }
     }
     else if (io == 2) {
       oactives = 0;
 
-      iomap newmap;
-      iomap::iterator walk = fdirectory.begin();
-      while (walk != fdirectory.end()) {
-	if (walk->second.iex) {
-	  ioio *m = &newmap[walk->first];
+      {
+	iomap newmap;
+	iomap::iterator walk = fdirectory.begin();
+	while (walk != fdirectory.end()) {
+	  if (walk->second.iex) {
+	    ioio *m = &newmap[walk->first];
 
-	  m->skip     = walk->second.skip;
-	  m->selected = walk->second.selected;
+	    m->skip     = walk->second.skip;
+	    m->selected = walk->second.selected;
 
-	  m->iex = walk->second.iex;
-	  m->in  = walk->second.in;
+	    m->iex = walk->second.iex;
+	    m->in  = walk->second.in;
+	  }
+
+	  walk++;
 	}
 
-	walk++;
+	fdirectory = newmap;
       }
 
-      fdirectory = newmap;
+      {
+	stmap newmap;
+	stmap::iterator walk = ddirectory.begin();
+	while (walk != ddirectory.end()) {
+	  if (walk->second.imsk & IEX) {
+	    iost *m = &newmap[walk->first];
+
+	    m->imsk = walk->second.imsk;
+	  }
+
+	  walk++;
+	}
+
+	ddirectory = newmap;
+      }
     }
 
     BOArchiveList->Clear();
@@ -1081,7 +1133,7 @@ private:
 	iomap::iterator walk = ldirectory[n];
 
 	/* apply operation locally */
-	bool selected = 
+	bool selected =
 	  op == 2 ? false :
 	  op == 1 ? true  : walk->second.selected;
 
@@ -1127,7 +1179,7 @@ private:
 	/* recursive or direct file */
 	if ((BORecursive->GetValue() || !strchr(fbase, '\\')) && filter.Matches(fbase)) {
 	  /* apply operation locally */
-	  bool selected = 
+	  bool selected =
 	    op == 2 ? false :
 	    op == 1 ? true  : walk->second.selected;
 
@@ -1135,14 +1187,14 @@ private:
 	    iactives++;
 	  else if (!selected &&  walk->second.selected)
 	    iactives--;
-	  
+
 	  walk->second.selected = selected;
 
 	  /* add the item */
 	  int n =
 	  BOArchiveList->Append(fbase);
 	  BOArchiveList->Check(n, walk->second.selected && walk->second.iex);
-	  wxOwnerDrawn *id = 
+	  wxOwnerDrawn *id =
 	  BOArchiveList->GetItem(n);
 
 	  /* client-data substitute */
@@ -1191,22 +1243,35 @@ private:
   }
 
   /* ---------------------------------------------------------------------------- */
-  void TypedIn(wxCommandEvent& event) {
+  void TypedIn(wxCommandEvent& event) { return;
     wxString ph = event.GetString();
-//  BOInText->SetValue(ph);
+    //  BOInText->SetValue(ph);
 
-    if (ph.IsNull()) 
+    if (ph.IsNull())
       return;
-
     /* does it exist? */
-    if (GetFileAttributes(ph.data()) == INVALID_FILE_ATTRIBUTES)
+    if (iosize(ph.data()) == -1)
       return;
 
     BrowseIn(ph);
   }
 
+  void TypedInDone(wxFocusEvent& event) {
+    wxString ph = BOInText->GetValue();
+
+    if (ph.IsNull())
+      return;
+    /* does it exist? */
+    if (iosize(ph.data()) == -1)
+      return;
+
+    if (stricmp(IPath, ph.data()))
+      BrowseIn(ph);
+  }
+
   void BrowseIn(wxCommandEvent& event) {
-    HRESULT hr = AskInput();
+    wxBusyCursor wait;
+    HRESULT hr = AskInput(IPath);
     if (!SUCCEEDED(hr))
       return;
 
@@ -1237,18 +1302,29 @@ private:
   }
 
   /* ---------------------------------------------------------------------------- */
-  void TypedOut(wxCommandEvent& event) {
+  void TypedOut(wxCommandEvent& event) { return;
     wxString ph = event.GetString();
 //  BOOutText->SetValue(ph);
 
-    if (ph.IsNull()) 
+    if (ph.IsNull())
       return;
 
     BrowseOut(ph);
   }
 
+  void TypedOutDone(wxFocusEvent& event) {
+    wxString ph = BOOutText->GetValue();
+
+    if (ph.IsNull())
+      return;
+
+    if (stricmp(OPath, ph.data()))
+      BrowseOut(ph);
+  }
+
   void BrowseOut(wxCommandEvent& event) {
-    HRESULT hr = AskOutput();
+    wxBusyCursor wait;
+    HRESULT hr = AskOutput(OPath);
     if (!SUCCEEDED(hr))
       return;
 
@@ -1273,10 +1349,9 @@ private:
 
     if (ph.IsNull())
       return;
-
-    /* does it exist? */
-    if (GetFileAttributes(ph.data()) == INVALID_FILE_ATTRIBUTES)
-      return;
+    /* does it exist?
+    if (iosize(ph.data()) == -1)
+      return; */
 
     DirectoryFromFiles(2);
     ResetHButtons();
@@ -1491,12 +1566,12 @@ public:
 
 	    /* progress */
 	    processedinbytes += iinfo.io_size;
-	    prog->SetReport("Efficiency: %s to %s bytes", 
-	      processedinbytes, 
+	    prog->SetReport("Efficiency: %s to %s bytes",
+	      processedinbytes,
 	      processedinbytes - compresseddtbytes - virtualbsabytes
 	    );
 	    prog->SetProgress(
-	      processedinbytes, 
+	      processedinbytes,
 	      processedinbytes - compresseddtbytes - virtualbsabytes
 	    );
 	  }
@@ -1517,7 +1592,7 @@ public:
     skipbroken    = BOSettings->FindChildItem(wxID_SKIPB, NULL)->IsChecked();
     processhidden = BOSettings->FindChildItem(wxID_SKIPH, NULL)->IsChecked();
     dropextras    = BOSettings->FindChildItem(wxID_SKIPX, NULL)->IsChecked();
-    verbose = false;
+    verbose = true;
 
     gameversion = -1;
     /**/ if (BOGame->FindChildItem(wxID_OBLIVON, NULL)->IsChecked())
@@ -1593,7 +1668,7 @@ public:
     if (BOSettings->FindChildItem(wxID_LOGF, NULL)->IsChecked()) {
       wxString ph = BOOutText->GetValue();
       wxFileName log(ph); log.ClearExt(); log.SetExt("log");
-      logfile = fopen(log.GetFullPath().data(), "wb");
+      logfile = fopen(log.GetFullPath().data(), (skipexisting || skipnewer ? "ab" : "wb"));
     }
 
     try {
@@ -1657,7 +1732,7 @@ public:
     }
     else if (RegCreateKeyEx(HKEY_LOCAL_MACHINE, "Software\\Bethesda Softworks\\BSAopt", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_READ | KEY_WRITE | KEY_WOW64_32KEY, NULL, &Settings, NULL) == ERROR_SUCCESS) {
     }
-    
+
     char TS[1024]; DWORD TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, NULL, "Filter", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOFilter->SetValue(TS); TSL = 1023;
@@ -1723,6 +1798,9 @@ public:
     if (TS[0]) BOOutText->SetValue(TS); TSL = 1023;
 
     warmup = false;
+
+    strcpy(IPath, BOInText->GetValue());
+    strcpy(OPath, BOOutText->GetValue());
 
 //  BrowseIn(BOInText->GetValue());
 //  BrowseOut(BOOutText->GetValue());
