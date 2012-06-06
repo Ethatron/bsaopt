@@ -150,7 +150,7 @@ void summary(FILE *out, const char *ou, int processedfiles) {
 
   if (1) {
     if (duplicates.size() > 0) {
-      fprintf(out, "\nduplicates files:\n");
+      fprintf(out, "\nduplicate files:\n");
       map<string, string>::iterator n;
       for (n = duplicates.begin(); n != duplicates.end(); n++)
 	fprintf(out, "%s == %s\n", n->first.data(), n->second.data());
@@ -202,6 +202,7 @@ extern long AskOutput(const char *presel);
 #pragma comment(lib,"Rpcrt4")
 
 #include "BSAopt_Window.h"
+#define W7SUPPORT
 
 // ----------------------------------------------------------------------------
 
@@ -258,7 +259,6 @@ public:
 // ----------------------------------------------------------------------------
 class BSAoptPrg; class BSAoptPrg *prg;
 class BSAoptPrg : public wxProgress {
-
 private:
   wxEventType evtProgress;
   int idProgress;
@@ -443,25 +443,61 @@ public:
       int tfinal = (int)floor((float)tpass / f1);
       int trem = tfinal - tlast;
 
-      char buf[256];
+#ifdef	W7SUPPORT
+      wxString str = BOSubject->GetLabel();
+      const char *inc = str.data();
+      wchar_t tmp[256]; mbstowcs(tmp, inc, 256);
 
-      sprintf(buf, "%02d:%02ds", tpass / 60, tpass % 60);
+      if (ptl) ptl->SetProgressValue((HWND)GetParent()->GetHWND(), BOTask->GetValue(), BOTask->GetRange());
+      if (ptl) ptl->SetThumbnailTooltip((HWND)GetParent()->GetHWND(), tmp);
+#endif
+
+      char buf[256]; int
+      minutes = tpass / 60,
+      seconds = tpass % 60,
+      hours   = minutes / 60;
+      minutes = minutes % 60;
+
+      sprintf(buf, "%02d:%02d:%02ds", hours, minutes, seconds);
       BORunning->SetLabel(buf);
 
       if (tfinal != 0x80000000) {
-	sprintf(buf, "%02d:%02ds", trem / 60, trem % 60);
+      	minutes = trem / 60;
+      	seconds = trem % 60;
+      	hours   = minutes / 60;
+      	minutes = minutes % 60;
+
+      	sprintf(buf, "%02d:%02d:%02ds", hours, minutes, seconds);
 	BORemaining->SetLabel(buf);
-	sprintf(buf, "%02d:%02ds", tfinal / 60, tfinal % 60);
+
+      	minutes = tfinal / 60;
+      	seconds = tfinal % 60;
+      	hours   = minutes / 60;
+      	minutes = minutes % 60;
+
+      	sprintf(buf, "%02d:%02d:%02ds", hours, minutes, seconds);
 	BOTotal->SetLabel(buf);
       }
       else {
-	BORemaining->SetLabel("00:00s");
+	BORemaining->SetLabel("00:00:00s");
 	BOTotal->SetLabel(buf);
       }
     }
 
 //  Sleep(500);
 //  event.RequestMore();
+  }
+
+  void Stopped() {
+#ifdef	W7SUPPORT
+    if (ptl) ptl->SetProgressState((HWND)GetParent()->GetHWND(), TBPF_ERROR);
+#endif
+  }
+
+  void Resumed() {
+#ifdef	W7SUPPORT
+    if (ptl) ptl->SetProgressState((HWND)GetParent()->GetHWND(), TBPF_NORMAL);
+#endif
   }
 
 private:
@@ -484,14 +520,26 @@ private:
   }
 
   void Block() {
+#ifdef	W7SUPPORT
+    if (ptl) ptl->SetProgressState((HWND)GetParent()->GetHWND(), TBPF_PAUSED);
+#endif
+
     ResetEvent(evt);
   }
 
   void Unblock() {
+#ifdef	W7SUPPORT
+    if (ptl) ptl->SetProgressState((HWND)GetParent()->GetHWND(), TBPF_NORMAL);
+#endif
+
     SetEvent(evt);
   }
 
 public:
+#ifdef	W7SUPPORT
+  ITaskbarList3 *ptl;
+#endif
+
   wxEventType evtLeave;
   int idLeave;
   int retCode;
@@ -514,6 +562,10 @@ public:
     /* rebase the created thread, and possibly spawned OpenMP ones (via process) */
     SetThreadPriority(async, THREAD_PRIORITY_BELOW_NORMAL);
     SetPriorityClass(GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS);
+
+#ifdef	W7SUPPORT
+    if (ptl) ptl->SetProgressState((HWND)GetParent()->GetHWND(), TBPF_NORMAL);
+#endif
 
     return ShowModal();
   }
@@ -578,12 +630,22 @@ public:
       NULL		  // unnamed mutex
     );
 
+#ifdef	W7SUPPORT
+    ptl = NULL; CoCreateInstance(CLSID_TaskbarList, NULL, CLSCTX_ALL, IID_ITaskbarList3, (void **)&ptl);
+#endif
+
     SetSize(600, 265);
   }
 
   BSAoptPrg::~BSAoptPrg() {
     CloseHandle(evt);
     CloseHandle(end);
+
+#ifdef	W7SUPPORT
+    if (ptl) ptl->SetProgressState((HWND)GetParent()->GetHWND(), TBPF_NOPROGRESS);
+    if (ptl) ptl->SetThumbnailTooltip((HWND)GetParent()->GetHWND(), L"Ready");
+    if (ptl) ptl->Release();
+#endif
   }
 };
 
@@ -630,6 +692,20 @@ private:
       BOConvert->SetLabel("Unpack");
     else if (!iarchive &&  oarchive)
       BOConvert->SetLabel("Pack");
+  }
+
+  /* ---------------------------------------------------------------------------- */
+  void ChangeToAuto(wxCommandEvent& event) {
+    RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "0", 2);
+  }
+  void ChangeToOblivion(wxCommandEvent& event) {
+    RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "1", 2);
+  }
+  void ChangeToFallout(wxCommandEvent& event) {
+    RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "2", 2);
+  }
+  void ChangeToSkyrim(wxCommandEvent& event) {
+    RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "3", 2);
   }
 
   /* ---------------------------------------------------------------------------- */
@@ -897,6 +973,9 @@ private:
     if (warmup)
       return;
 
+//  BOInText ->SetValue(IPath);
+//  BOOutText->SetValue(OPath);
+
     skipexisting  = BOSettings->FindChildItem(wxID_SKIPE, NULL)->IsChecked();
     skipnewer     = BOSettings->FindChildItem(wxID_SKIPN, NULL)->IsChecked();
     skiphashcheck = BOSettings->FindChildItem(wxID_SKIPC, NULL)->IsChecked();
@@ -1154,7 +1233,12 @@ private:
     wxFont fnt = BOArchiveList->GetFont();
     const wxNativeFontInfo *fni = fnt.GetNativeFontInfo();
     wxNativeFontInfo sni = *fni; sni.lf.lfStrikeOut = TRUE;
+    wxNativeFontInfo ini = *fni; ini.lf.lfItalic    = TRUE;
+    wxNativeFontInfo jni = *fni; jni.lf.lfStrikeOut = TRUE;
+				 jni.lf.lfItalic    = TRUE;
     wxFont str = fnt; str.SetNativeFontInfo(sni);
+    wxFont itr = fnt; itr.SetNativeFontInfo(ini);
+    wxFont jtr = fnt; jtr.SetNativeFontInfo(jni);
 
     skipexisting  = BOSettings->FindChildItem(wxID_SKIPE, NULL)->IsChecked();
     skipnewer     = BOSettings->FindChildItem(wxID_SKIPN, NULL)->IsChecked();
@@ -1204,6 +1288,7 @@ private:
 
 	  /* mark destination-only */
 	  id->SetCheckable(walk->second.iex);
+
 	  wxColour col(0, 0, 0, 255);
 	  if (!walk->second.iex)
 	    col = wxColour(140, 140, 140, 255);
@@ -1211,11 +1296,21 @@ private:
 	    col = wxColour(0, 60, 0, 255);
 
 	  /* mark no-overwrite */
-	  if (walk->second.iex && walk->second.oex) {
-	    if (skipexisting)
+	  if ((walk->second.iex && walk->second.oex) && (skipexisting || (skipnewer &&
+	       (walk->second.in.io_time <= walk->second.ou.io_time)))) {
+	    if (walk->second.in.io_size != walk->second.in.io_raws)
+	      id->SetFont(jtr);
+	    else
 	      id->SetFont(str);
-	    else if (skipnewer && (walk->second.in.io_time <= walk->second.ou.io_time))
-	      id->SetFont(str);
+	  }
+	  /* mark compressed */
+	  else if (walk->second.iex) {
+	    if (walk->second.in.io_size != walk->second.in.io_raws)
+	      id->SetFont(itr);
+	  }
+	  else if (walk->second.oex) {
+	    if (walk->second.ou.io_size != walk->second.ou.io_raws)
+	      id->SetFont(itr);
 	  }
 
 	  id->SetTextColour(col);
@@ -1245,7 +1340,7 @@ private:
   /* ---------------------------------------------------------------------------- */
   void TypedIn(wxCommandEvent& event) { return;
     wxString ph = event.GetString();
-    //  BOInText->SetValue(ph);
+//  BOInText->SetValue(ph);
 
     if (ph.IsNull())
       return;
@@ -1728,10 +1823,24 @@ public:
     warmup = true;
 
     Settings = 0;
-    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "Software\\Bethesda Softworks\\BSAopt", 0, KEY_READ | KEY_WRITE | KEY_WOW64_32KEY, &Settings) == ERROR_SUCCESS) {
+    /**/ if (RegOpenKeyEx  (HKEY_LOCAL_MACHINE, "Software\\Bethesda Softworks\\BSAopt", 0, KEY_READ | KEY_WRITE | KEY_WOW64_32KEY, &Settings) == ERROR_SUCCESS) {
     }
     else if (RegCreateKeyEx(HKEY_LOCAL_MACHINE, "Software\\Bethesda Softworks\\BSAopt", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_READ | KEY_WRITE | KEY_WOW64_32KEY, NULL, &Settings, NULL) == ERROR_SUCCESS) {
     }
+
+#ifdef W7SUPPORT
+    char PPath[256] = ""; GetModuleFileName(0, PPath, sizeof(PPath) - 1); HKEY Application = 0;
+    char APath[256]; strcpy(APath, "Applications"); char *exe = strrchr(PPath, '\\'); if (exe) strcat(APath, exe);
+    /**/ if (RegOpenKeyEx  (HKEY_CLASSES_ROOT, APath, 0, KEY_READ | KEY_WRITE, &Application) != ERROR_SUCCESS) {
+      RegCreateKeyEx(HKEY_CLASSES_ROOT, APath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_READ | KEY_WRITE, NULL, &Application, NULL);
+
+      strcpy(APath, "Open with "); strcat(APath, exe + 1); exe = strrchr(APath, '.'); if (exe) *exe = '\0';
+      RegSetKeyValue(Application, "shell\\open", "", RRF_RT_REG_SZ, APath, strlen(APath) + 1);
+      strcpy(APath, "\""); strcat(APath, PPath); strcat(APath, "\" \"%1\"");
+      RegSetKeyValue(Application, "shell\\open\\command", "", RRF_RT_REG_SZ, APath, strlen(APath) + 1);
+//    RegSetKeyValue(Application, "SupportedTypes", "Folder", RRF_RT_REG_SZ, "", 1);
+    }
+#endif
 
     char TS[1024]; DWORD TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, NULL, "Filter", RRF_RT_REG_SZ, NULL, TS, &TSL);
@@ -1799,10 +1908,10 @@ public:
 
     warmup = false;
 
-    strcpy(IPath, BOInText->GetValue());
+    strcpy(IPath, BOInText ->GetValue());
     strcpy(OPath, BOOutText->GetValue());
 
-//  BrowseIn(BOInText->GetValue());
+//  BrowseIn (BOInText ->GetValue());
 //  BrowseOut(BOOutText->GetValue());
 
     ResetHButtons();
@@ -1865,13 +1974,15 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance,
     argv.push_back(PPath);
 
     do {
+      if (cL[0] == ' ')
+	cL += 1;
+      if (cL[0] == '\0')
+	break;
+
       if (cL[0] == '"') {
 	cL[0] = '\0', cL += 1;
-	if ((cN = strchr(cL + 0, '"'))) {
+	if ((cN = strchr(cL + 0, '"')))
 	  cN[0] = '\0', cN += 1;
-	  if (cN[0])
-	    cN[0] = '\0', cN += 1;
-	}
       }
       else {
 	if ((cN = strchr(cL + 0, ' ')))
@@ -1879,7 +1990,7 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance,
       }
 
       argv.push_back(cL);
-    } while ((cL = cN) && cL[0]);
+    } while ((cL = cN));
 
     // argv[] must be NULL-terminated
     argc = (int)argv.size();

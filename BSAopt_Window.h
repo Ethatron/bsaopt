@@ -96,7 +96,9 @@ class wxBSAopt : public wxFrame
 		wxStatusBar* BOStatusBar;
 		
 		// Virtual event handlers, overide them in your derived class
+		virtual void ChangeToAuto( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeToOblivion( wxCommandEvent& event ) { event.Skip(); }
+		virtual void ChangeToFallout( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeToSkyrim( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeForceCompression( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeSkipExisting( wxCommandEvent& event ) { event.Skip(); }

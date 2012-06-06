@@ -72,6 +72,7 @@ using namespace std;
 #define OB_BSAFILE_XML  0x0004 //!< Set when the BSA contains XML files
 #define OB_BSAFILE_WAV  0x0008 //!< Set when the BSA contains WAV files
 #define OB_BSAFILE_MP3  0x0010 //!< Set when the BSA contains MP3 files
+#define OB_BSAFILE_XWM  0x0010 //!< Set when the BSA contains XWM files
 #define OB_BSAFILE_TXT  0x0020 //!< Set when the BSA contains TXT files
 #define OB_BSAFILE_HTML 0x0020 //!< Set when the BSA contains HTML files
 #define OB_BSAFILE_BAT  0x0020 //!< Set when the BSA contains BAT files
@@ -82,11 +83,16 @@ using namespace std;
 #define OB_BSAFILE_CTL  0x0100 //!< Set when the BSA contains CTL files
 
 #define OB_BSAFILE_LIP  0x0200 //!< Set when the BSA contains LIP files
+#define OB_BSAFILE_FUZ  0x0200 //!< Set when the BSA contains FUZ files
 #define OB_BSAFILE_BIK  0x0400 //!< Set when the BSA contains BIK files
 #define OB_BSAFILE_JPG  0x0800 //!< Set when the BSA contains JPG files
+#define OB_BSAFILE_OGG	0x1000 //!< Set when the BSA contains OGG files
+#define OB_BSAFILE_GID	0x2000 //!< Set when the BSA contains GID files
+#define OB_BSAFILE_PEX	0x2000 //!< Set when the BSA contains PEX files
 
 #define OB_BSAFILE_MASK 0x01FF //!< native types
-#define OB_BSAFILE_THRESH (OB_BSAFILE_MP3 | OB_BSAFILE_LIP | OB_BSAFILE_BIK | OB_BSAFILE_JPG)
+#define OB_BSAFILE_THRESH (OB_BSAFILE_OGG | OB_BSAFILE_MP3 | OB_BSAFILE_XWM | OB_BSAFILE_LIP | OB_BSAFILE_FUZ | OB_BSAFILE_BIK | OB_BSAFILE_JPG)
+#define OB_BSAFILE_EXLUDE (OB_BSAFILE_OGG)
 
 /* Bitmasks for the size field in the header */
 #define OB_BSAFILE_SIZEMASK 0x3fffffff //!< Bit mask with OBBSAFileInfo::sizeFlags to get the size of the file
@@ -623,6 +629,9 @@ public:
       else
 	return shutdown("File is not a supported BSA!");
     }
+    else if (gameversion != -1) {
+      version = gameversion;
+    }
 
     return (loaded = true);
   }
@@ -654,13 +663,16 @@ public:
 	memset(&_header, 0, sizeof(_header));
 
 	/* take some stuff over */
+	_header.FolderRecordOffset = sizeof(_magic) + sizeof(_version) + sizeof(_header);
 	_header.FileFlags = (header.FileFlags & 0xFFFF0000);
 	_header.ArchiveFlags |= OB_BSAARCHIVE_PATHNAMES | OB_BSAARCHIVE_FILENAMES | (compressbsa ? OB_BSAARCHIVE_COMPRESSFILES : 0);
-	_header.FolderRecordOffset = sizeof(_magic) + sizeof(_version) + sizeof(_header);
+	_header.ArchiveFlags |= (header.ArchiveFlags & SK_BSAARCHIVE_PREFIXFULLFILENAMES);
 
 	/* unknown */
-	if (_version == OB_BSAHEADER_VERSION)
-	 _header.ArchiveFlags |= 0x0700;
+	if (_version == OB_BSAHEADER_VERSION) {
+	  _header.ArchiveFlags |= 0x0700;
+	  _header.ArchiveFlags &= (~SK_BSAARCHIVE_PREFIXFULLFILENAMES);
+	}
 
 	/* walk (for summary) */
 	{
@@ -678,6 +690,20 @@ public:
 
 		/* recalculate the filecontent-flags */
 		_header.FileFlags |= ((*ft).filetype & OB_BSAFILE_MASK);
+
+		/* make a few corrections */
+		if (_version == OB_BSAHEADER_VERSION) {
+		  if ((*ft).filetype & (OB_BSAFILE_LIP | OB_BSAFILE_MP3))
+		    _header.FileFlags |= (OB_BSAFILE_MP3 | OB_BSAFILE_MP3);
+		}
+		if (_version == SK_BSAHEADER_VERSION) {
+		  if ((*ft).filetype & (OB_BSAFILE_FUZ | OB_BSAFILE_XWM))
+		    _header.FileFlags |= (OB_BSAFILE_WAV | OB_BSAFILE_XWM);
+		}
+		if (_version == F3_BSAHEADER_VERSION) {
+		  if ((*ft).filetype & (OB_BSAFILE_OGG | OB_BSAFILE_MP3))
+		    _header.FileFlags |= (OB_BSAFILE_WAV | OB_BSAFILE_MP3);
+		}
 
 		/* check the state-of-the compression */
 		unsigned int zlb = 0;
@@ -737,8 +763,8 @@ public:
 //	fprintf(stderr, "Consolidating BSA-fragments: %d/%d files (%d/%d bytes)\r", fls, flc, prg, bdy);
 
 	SetTopic("Consolidating BSA-fragments:");
-	SetReport("Efficiency: %s to %s bytes (%d duplicates)", 
-	  processedinbytes, 
+	SetReport("Efficiency: %s to %s bytes (%d duplicates)",
+	  processedinbytes,
 	  processedinbytes - compresseddtbytes - virtualbsabytes, 0
 	);
 	SetProgress(
@@ -926,15 +952,16 @@ public:
 
 		assert(dfmix <= dend);
 
-		/* assign known data */
-		strcpy(fname + 0, (*ft)->data());
-		unsigned char len = (unsigned char)(*ft)->length();
-		 fname  += len;
+		/* assign known file (255+\0) */
+		const char *lname = (*ft)->data();
+		unsigned char nlen = (unsigned char)min((*ft)->length(), 255);
+		memcpy(fname, lname, nlen);
+		 fname  += nlen;
 		*fname++ = '\0';
 
 		assert(fname <= fend);
-		SetReport("Efficiency: %s to %s bytes (%d duplicates)", 
-		  processedinbytes, 
+		SetReport("Efficiency: %s to %s bytes (%d duplicates)",
+		  processedinbytes,
 		  processedinbytes - compresseddtbytes - virtualbsabytes, (int)duplicates.size()
 		);
 		SetProgress(
@@ -1004,6 +1031,7 @@ public:
 	if ((*pathname) == '\0') {
 	  info->io_type = IO_DIRECTORY;
 	  info->io_size = 0;
+	  info->io_raws = 0;
 	  info->io_time = arctime;
 
 	  ret = 0;
@@ -1022,6 +1050,7 @@ public:
 	  if (ft != (*it).files.end()) {
 	    info->io_type = IO_FILE;
 	    info->io_size = size(&(*ft));
+	    info->io_raws = raws(&(*ft));
 	    info->io_time = arctime;
 
 	    ret = 0;
@@ -1039,6 +1068,7 @@ public:
 	if ((*fldname) == '\\') {
 	  info->io_type = IO_DIRECTORY;
 	  info->io_size = 0;
+	  info->io_raws = 0;
 	  info->io_time = arctime;
 
 	  ret = 0;
@@ -1053,6 +1083,7 @@ public:
   int stat(const bsfolder *file, struct ioinfo *info) const {
     info->io_type = IO_DIRECTORY;
     info->io_size = 0;
+    info->io_raws = 0;
     info->io_time = arctime;
 
     return 0;
@@ -1061,6 +1092,7 @@ public:
   int stat(const bsfile *file, struct ioinfo *info) const {
     info->io_type = IO_FILE;
     info->io_size = size(file);
+    info->io_raws = raws(file);
     info->io_time = arctime;
 
     return 0;
@@ -1272,6 +1304,30 @@ public:
     return NULL;
   }
 
+  size_t raws(const bsfile *file) const {
+    /* fetch value */
+    if (file->oinfo.offset) {
+      abort();
+      return 0;
+    }
+
+    /* fetch value */
+    if (file->iinfo.offset) {
+      bool   pfx = (version == SK_BSAHEADER_VERSION) &&
+	(header.ArchiveFlags & SK_BSAARCHIVE_PREFIXFULLFILENAMES);
+      size_t zlb = (file->oinfo.sizeFlags & ( OB_BSAFILE_FLAG_COMPRESS)) ^
+	(header.ArchiveFlags & OB_BSAARCHIVE_COMPRESSFILES);
+      size_t sze = (file->iinfo.sizeFlags & (~OB_BSAFILE_FLAG_ALLFLAGS));
+
+      /* objectable exact, but this data don't need to be so exact */
+      return sze
+	- (pfx ? sizeof(unsigned char) + *((unsigned char *)file->data()) : 0)
+	- (zlb ? sizeof(unsigned int) : 0);
+    }
+
+    return 0;
+  }
+
   size_t size(const bsfile *file) const {
     /* cached value */
     if (file->ouc)
@@ -1282,6 +1338,8 @@ public:
 
     /* fetch value */
     if (file->oinfo.offset) {
+      bool   pfx = (version == SK_BSAHEADER_VERSION) &&
+	(header.ArchiveFlags & SK_BSAARCHIVE_PREFIXFULLFILENAMES);
       size_t zlb = (file->oinfo.sizeFlags & ( OB_BSAFILE_FLAG_COMPRESS)) ^
 	(header.ArchiveFlags & OB_BSAARCHIVE_COMPRESSFILES);
       size_t sze = (file->oinfo.sizeFlags & (~OB_BSAFILE_FLAG_ALLFLAGS));
@@ -1293,29 +1351,44 @@ public:
 	  return 0;
 	}
       }
-
-      return sze;
+      abort();
+      return (file->ouc = sze);
     }
 
     /* fetch value */
     if (file->iinfo.offset) {
+      bool   pfx = (version == SK_BSAHEADER_VERSION) &&
+	(header.ArchiveFlags & SK_BSAARCHIVE_PREFIXFULLFILENAMES);
       size_t zlb = (file->iinfo.sizeFlags & ( OB_BSAFILE_FLAG_COMPRESS)) ^
 	(header.ArchiveFlags & OB_BSAARCHIVE_COMPRESSFILES);
       size_t sze = (file->iinfo.sizeFlags & (~OB_BSAFILE_FLAG_ALLFLAGS));
 
-      if (sze) {
-	/* compression path */
-	if (zlb) {
-	  size_t ret; int res;
+      if (sze && (zlb || pfx)) {
+	size_t ret; int res;
 
-	  if ((res = fseek(ibsa, file->iinfo.offset, SEEK_SET)))
+	/* remove size of prefixed name */
+	if ((res = fseek(ibsa, file->iinfo.offset, SEEK_SET)))
+	  return 0;
+
+	if (pfx) {
+	  unsigned char nlen;
+
+	  if ((ret = fread(&nlen, 1, sizeof(unsigned char), ibsa)) != sizeof(unsigned char))
 	    return 0;
+	  if ((res = fseek(ibsa, nlen, SEEK_CUR)))
+	    return 0;
+
+	  sze -= nlen;
+	}
+
+	/* read size of compressed blob */
+	if (zlb) {
 	  if ((ret = fread(&sze, 1, sizeof(long), ibsa)) != sizeof(long))
 	    return 0;
 	}
       }
 
-      return sze;
+      return (file->inc = sze);
     }
 
     return 0;
@@ -1329,6 +1402,8 @@ public:
     else if (!stricmp(buf, "xml")) return OB_BSAFILE_XML;
     else if (!stricmp(buf, "wav")) return OB_BSAFILE_WAV;
     else if (!stricmp(buf, "mp3")) return OB_BSAFILE_MP3;
+    else if (!stricmp(buf, "ogg")) return OB_BSAFILE_OGG;
+    else if (!stricmp(buf, "xwm")) return OB_BSAFILE_XWM;
     else if (!stricmp(buf, "txt")) return OB_BSAFILE_TXT;
     else if (!stricmp(buf, "bat")) return OB_BSAFILE_BAT;
     else if (!stricmp(buf, "scc")) return OB_BSAFILE_SCC;
@@ -1340,6 +1415,7 @@ public:
     else if (!stricmp(buf, "html")) return OB_BSAFILE_HTML;
 
     else if (!stricmp(buf, "lip")) return OB_BSAFILE_LIP;
+    else if (!stricmp(buf, "fuz")) return OB_BSAFILE_FUZ;
     else if (!stricmp(buf, "bik")) return OB_BSAFILE_BIK;
     else if (!stricmp(buf, "jpg")) return OB_BSAFILE_JPG;
 
@@ -1347,15 +1423,21 @@ public:
   }
 
   size_t read(const bsfile *file, void *block, unsigned int length) {
+    bool         pfx = (version == SK_BSAHEADER_VERSION) &&
+      (header.ArchiveFlags & SK_BSAARCHIVE_PREFIXFULLFILENAMES);
     unsigned int zlb = (file->iinfo.sizeFlags & ( OB_BSAFILE_FLAG_COMPRESS)) ^
       (header.ArchiveFlags & OB_BSAARCHIVE_COMPRESSFILES ? OB_BSAFILE_FLAG_COMPRESS : 0);
     unsigned int sze = (file->iinfo.sizeFlags & (~OB_BSAFILE_FLAG_ALLFLAGS));
     size_t ret; int res;
 
-    if (!file->inp && sze) {
+    if (!file->inp) {
+      /* void read */
+      if (!sze)
+	return 0;
+
       file->inc = sze;
-      file->inp = malloc(sze);
       file->ins = sze;
+      file->inp = malloc(sze);
       file->ina = 0;
 
       /* failure */
@@ -1367,45 +1449,55 @@ public:
       if ((ret = fread(file->inp, 1, sze, ibsa)) != sze)
 	return ret;
 
-      /* compression path */
+      /* decompress blob */
       if (zlb) {
-	void *backbuffer = file->inp;
-	void *bckpbuffer = file->inp;
+	unsigned int offssze = (pfx ? sizeof(unsigned char) + *((unsigned char *)file->inp) : 0);
 
-	/* prefixed name */
-	if ((version == SK_BSAHEADER_VERSION) &&
-	    (header.ArchiveFlags & SK_BSAARCHIVE_PREFIXFULLFILENAMES)) {
-	  unsigned char nlen = *((unsigned char *)backbuffer);
-	  backbuffer = ((unsigned char *)backbuffer) + sizeof(unsigned char) + nlen;
-	}
+	unsigned char *bckpbuffer = (unsigned char *)file->inp;
+	unsigned char *backbuffer = (unsigned char *)file->inp,
+	              *frntbuffer;
 
-	unsigned int realsze = *((unsigned int *)backbuffer);
+	unsigned int realsze = *((unsigned int *)(backbuffer + offssze));
+	unsigned int packsze = realsze;
 
 	file->inc = realsze;
-	file->inp = malloc(realsze + 1024);
-	file->ins = realsze;
+	file->ins = realsze + offssze;
+	file->inp = malloc(1024 + realsze + offssze);
 	file->ina = 0;
 
 	/* failure */
-	if (!file->inp)
+	if (!(frntbuffer = (unsigned char *)file->inp))
 	  return 0;
 
-	realsze += 1024;
-	res = uncompress(
-	  (Bytef *)file->inp + 0,
-	  (uLongf *)&realsze,
+	/* copy prefix */
+	if (offssze) {
+	  memcpy(frntbuffer, backbuffer, offssze);
+
+	  frntbuffer = frntbuffer + offssze;
+	  backbuffer = backbuffer + offssze;
+	}
+
+	/* more's available */
+	packsze += 1024;
+
+	/* maybe gzip (+16 is gzip only, +32 is autodetect) */
+	res = uncompress2(
+	  (Bytef *)frntbuffer,
+	  (uLongf *)&packsze,
 	  (Bytef *)backbuffer + sizeof(int),
-	  (uLongf)sze
+	  (uLongf)sze,
+	  32 + MAX_WBITS
 	);
 
 	free(bckpbuffer);
 
 	/* failure */
 	if (res != Z_OK) {
-	  /* this happens with 0-size files */
-	  if (realsze)
+	  /* this happens with 0/4-size files */
+	  if (packsze != realsze) {
 	    nfoprintf(stderr, "File \"%s\" has corrupt compression!\n", file->data());
-	  return 0;
+	    return 0;
+	  }
 	}
 
 	/* collect data */
@@ -1415,18 +1507,25 @@ public:
 	compressedinbytes += sze;
     }
 
+    /* skip prefixed name */
+    if (!file->ina && pfx) {
+      unsigned char nlen = *((unsigned char *)file->inp);
+
+      file->ina = sizeof(unsigned char) + nlen;
+    }
+
     /* limit reading to the size of the file */
     if (length > (file->ins - file->ina))
       length = file->ins - file->ina;
     else if (length == 0)
-      length = file->ins;
+      length = file->inc;
 
     /* copy in the contents */
     if (block && length)
       memcpy(block, (char *)file->inp + file->ina, length);
 
     /* advance the "cursor" */
-    file->ina += (unsigned int)length;
+    file->ina += length;
 
     return length;
   }
@@ -1443,14 +1542,25 @@ public:
   }
 
   size_t write(const bsfile *file, const void *block, unsigned int length) {
+    bool         pfx = (version == SK_BSAHEADER_VERSION) &&
+      (header.ArchiveFlags & SK_BSAARCHIVE_PREFIXFULLFILENAMES);
     unsigned int zlb = (file->iinfo.sizeFlags & ( OB_BSAFILE_FLAG_COMPRESS)) ^
       (header.ArchiveFlags & OB_BSAARCHIVE_COMPRESSFILES ? OB_BSAFILE_FLAG_COMPRESS : 0);
     unsigned int sze = (file->iinfo.sizeFlags & (~OB_BSAFILE_FLAG_ALLFLAGS));
 
-    if (!file->oup && length) {
+    /* add prefixed name */
+    unsigned int buffersize = length;
+    if (!file->oup && pfx)
+      buffersize += sizeof(unsigned char) + strlen(file->data());
+
+    if (!file->oup) {
+      /* void write */
+      if (!buffersize)
+	return 0;
+
       file->ouc = length;
-      file->oup = malloc(length);
-      file->ous = length;
+      file->ous = buffersize;
+      file->oup = malloc(buffersize);
       file->oua = 0;
 
       /* failure */
@@ -1459,15 +1569,27 @@ public:
     }
 
     /* don't limit writing */
-    if ((file->oua + length) > file->ous) {
-      file->ouc = file->oua + length;
-      file->oup = realloc(file->oup, file->oua + length);
-      file->ous = file->oua + length;
+    if ((file->oua + buffersize) > file->ous) {
+      file->ouc = file->ouc + length;
+      file->ous = file->oua + buffersize;
+      file->oup = realloc(file->oup, file->ous);
       file->oua = file->oua;
 
       /* failure */
       if (!file->oup)
 	return 0;
+    }
+
+    /* add prefixed name (\len+255) */
+    if (!file->oua && pfx) {
+      const char *lname = file->data();
+      unsigned char nlen = (unsigned char)min(file->length(), 255);
+
+      char *beginbuffer = (char *)file->oup;
+      *beginbuffer++ = nlen;
+      memcpy(beginbuffer, lname, nlen);
+
+      file->oua = sizeof(unsigned char) + nlen;
     }
 
     /* copy out the contents */
@@ -1498,7 +1620,8 @@ public:
 	}
       }
 
-      if (redo) {
+      /* problematic, "in" can be uncompressed and "out" suppose to be compressed */
+      if (redo || 1) {
 	size_t ret; int res;
 
 	if (!obsa) {
@@ -1510,43 +1633,46 @@ public:
 	}
 
 	if (obsa) {
+	  bool         noz = (version == SK_BSAHEADER_VERSION) &&
+	    (file->filetype & OB_BSAFILE_EXLUDE);
+	  bool         pfx = (version == SK_BSAHEADER_VERSION) &&
+	    (header.ArchiveFlags & SK_BSAARCHIVE_PREFIXFULLFILENAMES);
 	  unsigned int zlb = (file->oinfo.sizeFlags & ( OB_BSAFILE_FLAG_COMPRESS)) ^
 	    (header.ArchiveFlags & OB_BSAARCHIVE_COMPRESSFILES ? OB_BSAFILE_FLAG_COMPRESS : 0);
 	  unsigned int sze = (file->oinfo.sizeFlags & (~OB_BSAFILE_FLAG_ALLFLAGS));
 
 	  /* compression path */
-	  if ((zlb |= (compressbsa ? OB_BSAFILE_FLAG_COMPRESS : 0))) {
-	    unsigned int realsze = file->ous;
-	    unsigned int packsze = file->ous;
-	    void *backbuffer = file->oup, *frntbuffer;
+	  if ((zlb |= (compressbsa && !noz ? OB_BSAFILE_FLAG_COMPRESS : 0))) {
+	    unsigned int offssze = file->ous - file->ouc;
+	    unsigned int realsze =             file->ouc;
+	    unsigned int spcesze = 1024 + sizeof(int) + compressBound(realsze) * 2 + offssze;
+	    unsigned int packsze = realsze;
+	    unsigned char *backbuffer = (unsigned char *)file->oup,
+	                  *frntbuffer;
 	    int offset = 0;
 
 	    file->ouc = realsze;
-	    file->ous = 1024 + sizeof(int) + compressBound(realsze) * 2;
-	    file->oup = malloc(file->ous);
+	    file->ous = spcesze;
+	    file->oup = malloc(spcesze);
 	    file->oua = 0;
 
 	    /* failure */
-	    if (!(frntbuffer = file->oup))
+	    if (!(frntbuffer = (unsigned char *)file->oup))
 	      throw runtime_error("Writing BSA failed, running out of memory!");
 
-	    /* prefixed name */
-	    if ((version == SK_BSAHEADER_VERSION) &&
-		(header.ArchiveFlags & SK_BSAARCHIVE_PREFIXFULLFILENAMES)) {
-	      const char *lname = file->data();
-	      size_t nlen = strlen(lname);
+	    /* copy prefix */
+	    if (offssze) {
+	      memcpy(frntbuffer, backbuffer, offssze);
 
-	      *((unsigned char *)frntbuffer) = (unsigned char)nlen;
-	      strcpy((char *)frntbuffer + sizeof(unsigned char), lname);
-
-	      frntbuffer = (char *)frntbuffer + sizeof(unsigned char) + nlen;
+	      frntbuffer = frntbuffer + offssze;
+	      backbuffer = backbuffer + offssze;
 	    }
 
 	    /* search best strategy */
 	    int wbits = MAX_WBITS;
 	    int strategy = Z_DEFAULT_STRATEGY;
 	    if (srchbestbsa) {
-	      while ((1UL << (wbits - 1)) > file->ous)
+	      while ((1UL << (wbits - 1)) > realsze)
 		wbits--;
 
 	      /* inverse search */
@@ -1554,7 +1680,7 @@ public:
 	      unsigned int bestsize = 0x7FFFFFFF;
 	      for (int s = Z_FIXED; s >= Z_DEFAULT_STRATEGY; s--) {
 		/* space to compress into */
-		packsze = file->ous;
+		packsze = spcesze;
 
 		res = compress2(
 		  (Bytef *)frntbuffer + sizeof(int),
@@ -1589,11 +1715,11 @@ public:
 		int passes = (optimizequick ? 1 : 5);
 		int fastbytes = 255;
 
-		while ((1UL << (24UL - passes)) > file->ous)
+		while ((1UL << (24UL - passes)) > realsze)
 		  passes++;
 
 		/* space to compress into */
-		packsze = file->ous;
+		packsze = spcesze;
 
 		if (compress_rfc1950_7z(
 		      (const unsigned char *)backbuffer, realsze,
@@ -1660,7 +1786,7 @@ public:
 	      /* apply choosen strategy */
 	      if (strategy >= Z_DEFAULT_STRATEGY) {
 		/* space to compress into */
-		packsze = file->ous;
+		packsze = spcesze;
 
 		res = compress2(
 		  (Bytef *)frntbuffer + sizeof(int),
@@ -1710,25 +1836,29 @@ public:
 	    }
 
 	    if (strategy > -2) {
-	      /* write compressed size out */
-	      file->ous =
-		((unsigned char *)frntbuffer - (unsigned char *)file->oup) +
-		sizeof(int) + packsze;
-
 	      /* and put original size in */
 	      *((unsigned int *)frntbuffer) = realsze;
 
-	      free(backbuffer);
+	      /* free old resource */
+	      free(backbuffer - offssze);
 
-	      /* afirm compression-flag */
+	      /* write compressed size out */
+	      file->ouc = realsze;
+	      file->ous = packsze    + offssze + sizeof(unsigned int);
+	      file->oup = frntbuffer - offssze;
+	      file->oua = 0;
+
+	      /* affirm compression-flag */
 	      zlb = true;
 	    }
 	    else {
-	      free(file->oup);
+	      /* free new resource */
+	      free(frntbuffer - offssze);
 
+	      /* write uncompressed size out */
 	      file->ouc = realsze;
-	      file->oup = backbuffer;
-	      file->ous = realsze;
+	      file->ous = realsze    + offssze;
+	      file->oup = backbuffer - offssze;
 	      file->oua = 0;
 
 	      /* revoke compression-flag */
@@ -1759,17 +1889,17 @@ public:
 	  /* the order of the files in our temporary blob is irrelevant
 	   * no need to make it ordered, just prevent overlapping writes
 	   */
-	  else { ioblock(); {
+	  else { ioblock(); do {
 	    file->oinfo.sizeFlags = file->ous;
 	    file->oinfo.offset = ftell(obsa);
 
 	    /* check sanity */
-	    if (file->oinfo.offset > 0x7FFFFFFF)
-	      fail = "The temporary file exceeds 2GiB!";
+	    if (file->oinfo.offset > 0x7FFFFFFF) {
+	      fail = "The temporary file exceeds 2GiB!"; break; }
 	    /* write to temporary file */
-	    else if ((ret = fwrite(file->oup, 1, file->ous, obsa)) != file->ous)
-	      fail = "Writing BSA failed!";
-	  }; iorelease(); }
+	    if ((ret = fwrite(file->oup, 1, file->ous, obsa)) != file->ous) {
+	      fail = "Writing BSA failed!"; break; }
+	  } while(0); iorelease(); }
 
 	  if (fail)
 	    throw runtime_error(fail);
@@ -1829,6 +1959,7 @@ public:
 	case SEEK_CUR: pos = (int)file->oua + offset; break;
 	case SEEK_END: pos = (int)file->ous + offset; break;
 	case SEEK_SET: pos = (int)            offset; break;
+	default:     __assume(0);                     break;
       }
 
       if (pos < 0)
@@ -1845,6 +1976,7 @@ public:
 	case SEEK_CUR: pos = (int)file->ina + offset; break;
 	case SEEK_END: pos = (int)file->ins + offset; break;
 	case SEEK_SET: pos = (int)            offset; break;
+	default:     __assume(0);                     break;
       }
 
       if (pos < 0)
@@ -1923,6 +2055,7 @@ int stat_arc(const char *pathname, struct ioinfo *info) {
       if ((*pathname) == '\0')
 	info->io_type = IO_ARCHIVE,
 	info->io_size = 0,
+	info->io_raws = 0,
 	info->io_time = arc.arctime,
 	ret = 0;
       else if ((*pathname) == '\\')

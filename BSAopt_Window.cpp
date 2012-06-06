@@ -271,9 +271,9 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	this->Centre( wxBOTH );
 	
 	// Connect Events
-	this->Connect( BOAuto->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToOblivion ) );
+	this->Connect( BOAuto->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToAuto ) );
 	this->Connect( BOOblivion->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToOblivion ) );
-	this->Connect( BOFallOut->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToOblivion ) );
+	this->Connect( BOFallOut->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToFallout ) );
 	this->Connect( BOSkyrim->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToSkyrim ) );
 	this->Connect( BOForce->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeForceCompression ) );
 	this->Connect( BOSkipExisting->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipExisting ) );
@@ -304,9 +304,9 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 wxBSAopt::~wxBSAopt()
 {
 	// Disconnect Events
-	this->Disconnect( wxID_AUTO, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToOblivion ) );
+	this->Disconnect( wxID_AUTO, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToAuto ) );
 	this->Disconnect( wxID_OBLIVON, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToOblivion ) );
-	this->Disconnect( wxID_FALLOUT, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToOblivion ) );
+	this->Disconnect( wxID_FALLOUT, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToFallout ) );
 	this->Disconnect( wxID_SKYRIM, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToSkyrim ) );
 	this->Disconnect( wxID_FORCE, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeForceCompression ) );
 	this->Disconnect( wxID_SKIPE, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipExisting ) );
@@ -367,7 +367,7 @@ wxProgress::wxProgress( wxWindow* parent, wxWindowID id, const wxString& title, 
 	m_staticText25->Wrap( -1 );
 	gSizer6->Add( m_staticText25, 0, wxALL, 2 );
 	
-	BORunning = new wxStaticText( m_panel9, wxID_ANY, wxT("00:00s"), wxDefaultPosition, wxDefaultSize, 0 );
+	BORunning = new wxStaticText( m_panel9, wxID_ANY, wxT("00:00:00s"), wxDefaultPosition, wxDefaultSize, 0 );
 	BORunning->Wrap( -1 );
 	gSizer6->Add( BORunning, 0, wxALIGN_RIGHT|wxALL, 2 );
 	
@@ -375,7 +375,7 @@ wxProgress::wxProgress( wxWindow* parent, wxWindowID id, const wxString& title, 
 	m_staticText27->Wrap( -1 );
 	gSizer6->Add( m_staticText27, 0, wxALL, 2 );
 	
-	BORemaining = new wxStaticText( m_panel9, wxID_ANY, wxT("00:00s"), wxDefaultPosition, wxDefaultSize, 0 );
+	BORemaining = new wxStaticText( m_panel9, wxID_ANY, wxT("00:00:00s"), wxDefaultPosition, wxDefaultSize, 0 );
 	BORemaining->Wrap( -1 );
 	gSizer6->Add( BORemaining, 0, wxALIGN_RIGHT|wxALL, 2 );
 	
@@ -383,7 +383,7 @@ wxProgress::wxProgress( wxWindow* parent, wxWindowID id, const wxString& title, 
 	m_staticText29->Wrap( -1 );
 	gSizer6->Add( m_staticText29, 0, wxALL, 2 );
 	
-	BOTotal = new wxStaticText( m_panel9, wxID_ANY, wxT("00:00s"), wxDefaultPosition, wxDefaultSize, 0 );
+	BOTotal = new wxStaticText( m_panel9, wxID_ANY, wxT("00:00:00s"), wxDefaultPosition, wxDefaultSize, 0 );
 	BOTotal->Wrap( -1 );
 	gSizer6->Add( BOTotal, 0, wxALIGN_RIGHT|wxALL, 1 );
 	

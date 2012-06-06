@@ -349,6 +349,7 @@ char *putsuf(char *result, const char *pathname, const char *suffix) {
 struct ioinfo {
   unsigned short io_type;
   size_t io_size;
+  size_t io_raws;
   time_t io_time;
 };
 
@@ -387,12 +388,14 @@ int iostat(const char *pathname, struct ioinfo *info) {
     if (!(ret = stat(pathname, &sinfo))) {
       if (sinfo.st_mode & S_IFDIR) {
         info->io_type = IO_DIRECTORY;
-        info->io_size = sinfo.st_size;
+	info->io_size = sinfo.st_size;
+	info->io_raws = (atr & FILE_ATTRIBUTE_COMPRESSED ? -1 : sinfo.st_size);
 	info->io_time = sinfo.st_mtime;
       }
       else {
         info->io_type = IO_FILE;
 	info->io_size = sinfo.st_size;
+	info->io_raws = (atr & FILE_ATTRIBUTE_COMPRESSED ? -1 : sinfo.st_size);
 	info->io_time = sinfo.st_mtime;
       }
     }
@@ -501,9 +504,15 @@ void iocp(const char *inname, const char *ouname) {
       void *mem = malloc(1024 * 1024);
       size_t rd, sz = 0;
 
+      if (!mem) {
+	sprintf(rerror, "Unable to allocate memory to process \"%s\"\n", inname);
+	throw runtime_error(rerror);
+      }
+
       while ((rd = fread_arc(mem, 1, 1024 * 1024, infle)) > 0) {
 	sz += rd;
 	if (fwrite_arc(mem, 1, rd, oufle) != rd) {
+	  sprintf(rerror, "Disk full\n"); free(mem);
 	  sprintf(rerror, "Disk full\n");
 	  throw runtime_error(rerror);
 	}
@@ -512,11 +521,13 @@ void iocp(const char *inname, const char *ouname) {
       if (sz == 0) {
 	struct ioinfo info;
 	if (iostat(inname, &info)) {
+	  sprintf(rerror, "Unable to access \"%s\"\n", inname); free(mem);
 	  sprintf(rerror, "Unable to access \"%s\"\n", inname);
 	  throw runtime_error(rerror);
 	}
 
 	if (info.io_size != 0) {
+	  sprintf(rerror, "Unable to read from \"%s\"\n", inname); free(mem);
 	  sprintf(rerror, "Unable to read from \"%s\"\n", inname);
 	  throw runtime_error(rerror);
 	}
@@ -547,9 +558,15 @@ void iocp(const char *inname, const char *ouname) {
       void *mem = malloc(1024 * 1024);
       size_t rd, sz = 0;
 
+      if (!mem) {
+	sprintf(rerror, "Unable to allocate memory to process \"%s\"\n", inname);
+	throw runtime_error(rerror);
+      }
+
       while ((rd = fread_arc(mem, 1, 1024 * 1024, infle)) > 0) {
 	sz += rd;
 	if (fwrite(mem, 1, rd, oufle) != rd) {
+	  sprintf(rerror, "Disk full\n"); free(mem);
 	  sprintf(rerror, "Disk full\n");
 	  throw runtime_error(rerror);
 	}
@@ -558,11 +575,13 @@ void iocp(const char *inname, const char *ouname) {
       if (sz == 0) {
 	struct ioinfo info;
 	if (iostat(inname, &info)) {
+	  sprintf(rerror, "Unable to access \"%s\"\n", inname); free(mem);
 	  sprintf(rerror, "Unable to access \"%s\"\n", inname);
 	  throw runtime_error(rerror);
 	}
 
 	if (info.io_size != 0) {
+	  sprintf(rerror, "Unable to read from \"%s\"\n", inname); free(mem);
 	  sprintf(rerror, "Unable to read from \"%s\"\n", inname);
 	  throw runtime_error(rerror);
 	}
@@ -593,9 +612,15 @@ void iocp(const char *inname, const char *ouname) {
       void *mem = malloc(1024 * 1024);
       size_t rd, sz = 0;
 
+      if (!mem) {
+	sprintf(rerror, "Unable to allocate memory to process \"%s\"\n", inname);
+	throw runtime_error(rerror);
+      }
+
       while ((rd = fread(mem, 1, 1024 * 1024, infle)) > 0) {
 	sz += rd;
 	if (fwrite_arc(mem, 1, rd, oufle) != rd) {
+	  sprintf(rerror, "Disk full\n"); free(mem);
 	  sprintf(rerror, "Disk full\n");
 	  throw runtime_error(rerror);
 	}
@@ -604,11 +629,13 @@ void iocp(const char *inname, const char *ouname) {
       if (sz == 0) {
 	struct ioinfo info;
 	if (iostat(inname, &info)) {
+	  sprintf(rerror, "Unable to access \"%s\"\n", inname); free(mem);
 	  sprintf(rerror, "Unable to access \"%s\"\n", inname);
 	  throw runtime_error(rerror);
 	}
 
 	if (info.io_size != 0) {
+	  sprintf(rerror, "Unable to read from \"%s\"\n", inname); free(mem);
 	  sprintf(rerror, "Unable to read from \"%s\"\n", inname);
 	  throw runtime_error(rerror);
 	}

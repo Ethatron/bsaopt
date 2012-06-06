@@ -201,7 +201,7 @@
                         <property name="permission">none</property>
                         <property name="shortcut"></property>
                         <property name="unchecked_bitmap"></property>
-                        <event name="OnMenuSelection">ChangeToOblivion</event>
+                        <event name="OnMenuSelection">ChangeToAuto</event>
                         <event name="OnUpdateUI"></event>
                     </object>
                     <object class="wxMenuItem" expanded="1">
@@ -231,7 +231,7 @@
                         <property name="permission">none</property>
                         <property name="shortcut"></property>
                         <property name="unchecked_bitmap"></property>
-                        <event name="OnMenuSelection">ChangeToOblivion</event>
+                        <event name="OnMenuSelection">ChangeToFallout</event>
                         <event name="OnUpdateUI"></event>
                     </object>
                     <object class="wxMenuItem" expanded="1">
@@ -2946,7 +2946,7 @@
                                             <property name="gripper">0</property>
                                             <property name="hidden">0</property>
                                             <property name="id">wxID_ANY</property>
-                                            <property name="label">00:00s</property>
+                                            <property name="label">00:00:00s</property>
                                             <property name="layer"></property>
                                             <property name="maximize_button">0</property>
                                             <property name="maximum_size"></property>
@@ -3114,7 +3114,7 @@
                                             <property name="gripper">0</property>
                                             <property name="hidden">0</property>
                                             <property name="id">wxID_ANY</property>
-                                            <property name="label">00:00s</property>
+                                            <property name="label">00:00:00s</property>
                                             <property name="layer"></property>
                                             <property name="maximize_button">0</property>
                                             <property name="maximum_size"></property>
@@ -3282,7 +3282,7 @@
                                             <property name="gripper">0</property>
                                             <property name="hidden">0</property>
                                             <property name="id">wxID_ANY</property>
-                                            <property name="label">00:00s</property>
+                                            <property name="label">00:00:00s</property>
                                             <property name="layer"></property>
                                             <property name="maximize_button">0</property>
                                             <property name="maximum_size"></property>
