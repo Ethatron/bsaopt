@@ -37,22 +37,26 @@ template <class T> void SafeRelease(T **ppT) {
 #pragma comment(lib, "propsys.lib")
 #pragma comment(lib, "comctl32.lib")
 
+#ifndef XPSUPPORT
 #pragma comment(linker, "\"/manifestdependency:type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 const COMDLG_FILTERSPEC c_rgLoadTypes[] =
 {
     {L"Bethesda Softworks Archive (*.bsa)",	L"*.bsa"},
+    {L"Zip Archive (*.zip)",	L"*.zip"},
 //  {L"All Documents (*)",         		L"*"},
 };
 
 COMDLG_FILTERSPEC c_rgSaveTypes[] =
 {
     {L"Bethesda Softworks Archive (*.bsa)",	L"*.bsa"},
+    {L"Zip Archive (*.zip)",	L"*.zip"},
 //  {L"All Documents (*)",         		L"*"},
 };
 
 int c_rgSaveNums = 0;
 const wchar_t bsaext[] = L"bsa";
+const wchar_t zipext[] = L"zip";
 LPCWSTR defext = bsaext;
 UINT defidx = 0;
 
@@ -61,6 +65,7 @@ const DWORD c_idDone    = 602;
 
 // Indices of file types
 #define INDEX_BSA	1
+#define INDEX_ZIP	2
 
 // Controls
 #define CONTROL_GROUP           2000
@@ -287,6 +292,16 @@ HRESULT CDialogEventHandler::OnTypeChange(IFileDialog *pfd)
                     pdl->Release();
                 }
                 break;
+            case INDEX_ZIP:
+                // When .zip is selected, let's ask for some arbitrary property, say Title.
+                hr = PSGetPropertyDescriptionListFromString(L"prop:System.Title", IID_PPV_ARGS(&pdl));
+                if (SUCCEEDED(hr))
+                {
+                    // FALSE as second param == do not show default properties.
+                    hr = pfsd->SetCollectedProperties(pdl, FALSE);
+                    pdl->Release();
+                }
+                break;
             }
         }
         pfsd->Release();
@@ -395,18 +410,18 @@ HRESULT AskInput(const char *presel)
 	      pfdc->Release();
 	    }
 
-	    SetPresel(presel, pfd);
+	    SetPresel(presel, pfd); bool iszip = presel && !!strstr(presel, "zip");
 
 	    // Set the file types to display only. Notice that, this is a 1-based array.
 	    hr = pfd->SetFileTypes(ARRAYSIZE(c_rgLoadTypes), c_rgLoadTypes);
 	    if (SUCCEEDED(hr))
 	    {
 	      // Set the selected file type index to Word Docs for this example.
-	      hr = pfd->SetFileTypeIndex(INDEX_BSA);
+	      hr = pfd->SetFileTypeIndex(iszip ? INDEX_ZIP : INDEX_BSA);
 	      if (SUCCEEDED(hr))
 	      {
 		// Set the default extension to be ".bsa" file.
-		hr = pfd->SetDefaultExtension(L"bsa");
+		hr = pfd->SetDefaultExtension(iszip ? L"zip" : L"bsa");
 		if (SUCCEEDED(hr))
 		{
 		  // Show the dialog
@@ -500,18 +515,18 @@ HRESULT AskOutput(const char *presel)
 	      pfdc->Release();
 	    }
 
-	    SetPresel(presel, pfd);
+	    SetPresel(presel, pfd); bool iszip = presel && !!strstr(presel, "zip");
 
 	    // Set the file types to display only. Notice that, this is a 1-based array.
 	    hr = pfd->SetFileTypes(ARRAYSIZE(c_rgSaveTypes), c_rgSaveTypes);
 	    if (SUCCEEDED(hr))
 	    {
 	      // Set the selected file type index to Word Docs for this example.
-	      hr = pfd->SetFileTypeIndex(INDEX_BSA);
+	      hr = pfd->SetFileTypeIndex(iszip ? INDEX_ZIP : INDEX_BSA);
 	      if (SUCCEEDED(hr))
 	      {
 		// Set the default extension to be ".bsa" file.
-		hr = pfd->SetDefaultExtension(defext);
+		hr = pfd->SetDefaultExtension(iszip ? L"zip" : L"bsa");
 		if (SUCCEEDED(hr))
 		{
 		  // Show the dialog
@@ -570,6 +585,181 @@ HRESULT AskOutput(const char *presel)
 
   return hr;
 }
+#else
+#include "../resource.h"
+
+const char *c_rgLoadTypes =
+    "Bethesda Softworks Archive (*.bsa)\0*.bsa\0"
+    "Zip Archive (*.zip)\0*.zip\0"
+    "\0"
+//  "All Documents (*)\0*\0"
+;
+
+char *c_rgSaveTypes =
+    "Bethesda Softworks Archive (*.bsa)\0*.bsa\0"
+    "Zip Archive (*.zip)\0*.zip\0"
+    "\0"
+//  "All Documents (*)\0*\0"
+;
+
+/* Utility Classes and Functions *************************************************************************************************/
+
+LPSTR selected_string = NULL;
+char comeback_string[1024];
+char filename_string[1024];
+
+UINT_PTR CALLBACK DirectoryHook(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
+//LPOPENFILENAME lpOFN;
+  WORD nId = 0, nNotifyCode = 0;
+  LPNMHDR lpNMHDR;
+
+  switch (message) {
+    case WM_INITDIALOG:
+      // Save off the long pointer to the OPENFILENAME structure.
+      SetWindowLongPtr(hDlg, DWLP_USER, (LONG_PTR)lParam);
+      break;
+
+    case WM_DESTROY:
+      break;
+
+    case WM_NOTIFY:
+      lpNMHDR = (LPNMHDR)lParam;
+      if (lpNMHDR->code == CDN_FILEOK) {
+	int len = CommDlg_OpenSave_GetFilePath(GetParent(hDlg), comeback_string, 1023);
+	if (len >= 0)
+	  strcpy(filename_string, comeback_string);
+      }
+      break;
+
+      // CDN_FILEOK
+      // CDM_GETFOLDERPATH
+      
+    case WM_COMMAND:
+      nId = LOWORD(wParam);
+      nNotifyCode = HIWORD(wParam);
+      switch (nId) {
+	case IDC_USEFOLDER:
+	  // lParam = pointer to text buffer that gets filled in
+	  // wParam = max number of characters of the text buffer (including NULL)
+	  // return = < 0 if error; number of characters needed (including NULL)
+	  int len = CommDlg_OpenSave_GetFolderPath(GetParent(hDlg), comeback_string, 1023);
+	  if (len >= 0)
+	    strcpy(filename_string, comeback_string);          
+
+	  EndDialog(GetParent(hDlg), 1);
+	  return TRUE;
+      }
+      break;
+
+    default:
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+/* BSAopt Snippets ***************************************************************************************************/
+
+// This code snippet demonstrates how to work with the BSAopt interface
+HRESULT AskInput(const char *presel)
+{
+  OPENFILENAME of;
+  if (selected_string) {
+    delete[] selected_string;
+    selected_string = NULL;
+  }
+
+  strcpy(comeback_string, presel);
+  memset(&of, 0, sizeof(of));
+
+  of.lStructSize = sizeof(of);
+  of.hwndOwner = NULL;
+  of.hInstance = NULL;	// OFN_ENABLETEMPLATE, OFN_ENABLETEMPLATEHANDLE
+  of.lpstrFilter = c_rgLoadTypes;
+  of.lpstrCustomFilter = NULL;
+  of.nMaxCustFilter = 0;
+  of.nFilterIndex = 1;
+  of.lpstrFile = comeback_string;
+  of.nMaxFile = 1023;
+
+  static char tmp[MAX_PATH]; strcpy(tmp, presel);
+  PTSTR ext = PathFindExtension(tmp);
+  PTSTR nam = PathFindFileName(tmp);
+  if (nam > tmp) { nam[-1] = '\0';
+    of.lpstrFileTitle = nam;
+    of.nMaxFileTitle = MAX_PATH - (nam - tmp);
+  }
+  else
+    of.lpstrFileTitle = NULL;
+  
+  of.lpstrInitialDir = tmp;
+  of.lpstrTitle = NULL;
+  // OFN_ENABLEHOOK, OFN_ENABLETEMPLATE, OFN_ENABLETEMPLATEHANDLE
+  of.Flags = OFN_HIDEREADONLY | OFN_EXPLORER | OFN_ENABLETEMPLATE | OFN_ENABLEHOOK | OFN_ENABLESIZING | OFN_FILEMUSTEXIST;
+
+  of.lpfnHook          = DirectoryHook;
+  of.lpTemplateName    = MAKEINTRESOURCE(IDD_LOADBSAEX);
+  of.hInstance         = GetModuleHandle(NULL);
+  
+  if (GetOpenFileName(&of)) {
+    selected_string = new char[strlen(filename_string) + 1];
+    strcpy(selected_string, filename_string);
+    return S_OK;
+  }
+
+  return S_FALSE;
+}
+
+// This code snippet demonstrates how to work with the BSAopt interface
+HRESULT AskOutput(const char *presel)
+{
+  OPENFILENAME sf;
+  if (selected_string) {
+    delete[] selected_string;
+    selected_string = NULL;
+  }
+  
+  strcpy(comeback_string, presel);
+  memset(&sf, 0, sizeof(sf));
+
+  sf.lStructSize = sizeof(sf);
+  sf.hwndOwner = NULL;
+  sf.hInstance = NULL;	// OFN_ENABLETEMPLATE, OFN_ENABLETEMPLATEHANDLE
+  sf.lpstrFilter = c_rgSaveTypes;
+  sf.lpstrCustomFilter = NULL;
+  sf.nMaxCustFilter = 0;
+  sf.nFilterIndex = 1;
+  sf.lpstrFile = comeback_string;
+  sf.nMaxFile = 1023;
+  
+  static char tmp[MAX_PATH]; strcpy(tmp, presel);
+  PTSTR ext = PathFindExtension(tmp);
+  PTSTR nam = PathFindFileName(tmp);
+  if (nam > tmp) { nam[-1] = '\0';
+    sf.lpstrInitialDir = tmp;
+    sf.nMaxFileTitle = MAX_PATH - (nam - tmp);
+  }
+  else
+    sf.lpstrFileTitle = NULL;
+  
+  sf.lpstrInitialDir = tmp;
+  sf.lpstrTitle = NULL;
+  // OFN_ENABLEHOOK, OFN_ENABLETEMPLATE, OFN_ENABLETEMPLATEHANDLE
+  sf.Flags = OFN_HIDEREADONLY | OFN_EXPLORER | OFN_ENABLETEMPLATE | OFN_ENABLEHOOK | OFN_ENABLESIZING | OFN_PATHMUSTEXIST | OFN_CREATEPROMPT | OFN_OVERWRITEPROMPT | OFN_NOTESTFILECREATE;
+  
+  sf.lpfnHook          = DirectoryHook;
+  sf.lpTemplateName    = MAKEINTRESOURCE(IDD_SAVEBSAEX);
+  sf.hInstance         = GetModuleHandle(NULL);
+  
+  if (GetSaveFileName(&sf)) {
+    selected_string = new char[strlen(filename_string) + 1];
+    strcpy(selected_string, filename_string);
+    return S_OK;
+  }
+
+  return S_FALSE;
+}
+#endif
 
 #if 0
 HRESULT Copy()

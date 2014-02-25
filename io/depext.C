@@ -1,3 +1,7 @@
+
+#define	_CRT_SECURE_NO_WARNINGS
+#define	_CRT_NONSTDC_NO_DEPRECATE
+
 /* #################################################################################
  */
 
@@ -119,6 +123,17 @@ int ZEXPORT uncompress2(Bytef *dest, uLongf *destLen,
 }
 #endif
 
+#endif
+#endif
+
+/* #################################################################################
+ */
+
+#ifdef	DEPEXT_LIBZIP
+#ifndef DEPEXT_LIBZIP_INC
+#define DEPEXT_LIBZIP_INC
+
+#include "libzip-0.10.1/lib/zip.h"
 #endif
 #endif
 

@@ -1,9 +1,10 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  4 2010)
+// C++ code generated with wxFormBuilder (version Oct  8 2012)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
+
 
 #include "BSAopt_Window.h"
 
@@ -20,6 +21,10 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	BOGame->Append( BOAuto );
 	BOAuto->Check( true );
 	
+	wxMenuItem* BOMorrowind;
+	BOMorrowind = new wxMenuItem( BOGame, wxID_MORROWIND, wxString( wxT("Morrowind") ) , wxEmptyString, wxITEM_RADIO );
+	BOGame->Append( BOMorrowind );
+	
 	wxMenuItem* BOOblivion;
 	BOOblivion = new wxMenuItem( BOGame, wxID_OBLIVON, wxString( wxT("Oblivion") ) , wxEmptyString, wxITEM_RADIO );
 	BOGame->Append( BOOblivion );
@@ -28,9 +33,17 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	BOFallOut = new wxMenuItem( BOGame, wxID_FALLOUT, wxString( wxT("Fallout 3") ) , wxEmptyString, wxITEM_RADIO );
 	BOGame->Append( BOFallOut );
 	
+	wxMenuItem* BOFallOutXB;
+	BOFallOutXB = new wxMenuItem( BOGame, wxID_FALLOUTXB, wxString( wxT("Fallout 3 (XBox 360)") ) , wxEmptyString, wxITEM_RADIO );
+	BOGame->Append( BOFallOutXB );
+	
 	wxMenuItem* BOSkyrim;
 	BOSkyrim = new wxMenuItem( BOGame, wxID_SKYRIM, wxString( wxT("Skyrim") ) , wxEmptyString, wxITEM_RADIO );
 	BOGame->Append( BOSkyrim );
+	
+	wxMenuItem* BOSkyrimXB;
+	BOSkyrimXB = new wxMenuItem( BOGame, wxID_SKYRIMXB, wxString( wxT("Skyrim (XBox 360)") ) , wxEmptyString, wxITEM_RADIO );
+	BOGame->Append( BOSkyrimXB );
 	
 	BOMenuBar->Append( BOGame, wxT("Game") ); 
 	
@@ -84,8 +97,7 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	BOCompression->Append( BOZ10Thorough );
 	BOZ10Thorough->Check( true );
 	
-	wxMenuItem* m_separator1;
-	m_separator1 = BOCompression->AppendSeparator();
+	BOCompression->AppendSeparator();
 	
 	wxMenuItem* BOForce;
 	BOForce = new wxMenuItem( BOCompression, wxID_FORCE, wxString( wxT("Forced") ) , wxEmptyString, wxITEM_CHECK );
@@ -109,8 +121,7 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	BOSettings->Append( BOSkipHidden );
 	BOSkipHidden->Check( true );
 	
-	wxMenuItem* m_separator2;
-	m_separator2 = BOSettings->AppendSeparator();
+	BOSettings->AppendSeparator();
 	
 	wxMenuItem* BOSkipHash;
 	BOSkipHash = new wxMenuItem( BOSettings, wxID_SKIPC, wxString( wxT("Skip hash-check") ) , wxEmptyString, wxITEM_CHECK );
@@ -120,16 +131,14 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	BOSkipBroken = new wxMenuItem( BOSettings, wxID_SKIPB, wxString( wxT("Skip broken files") ) , wxEmptyString, wxITEM_CHECK );
 	BOSettings->Append( BOSkipBroken );
 	
-	wxMenuItem* m_separator3;
-	m_separator3 = BOSettings->AppendSeparator();
+	BOSettings->AppendSeparator();
 	
 	wxMenuItem* BOUnselectExtras;
 	BOUnselectExtras = new wxMenuItem( BOSettings, wxID_SKIPX, wxString( wxT("Unselect inappropriate") ) , wxEmptyString, wxITEM_CHECK );
 	BOSettings->Append( BOUnselectExtras );
 	BOUnselectExtras->Check( true );
 	
-	wxMenuItem* m_separator31;
-	m_separator31 = BOSettings->AppendSeparator();
+	BOSettings->AppendSeparator();
 	
 	wxMenuItem* BOLogfile;
 	BOLogfile = new wxMenuItem( BOSettings, wxID_LOGF, wxString( wxT("Write logfile") ) , wxEmptyString, wxITEM_CHECK );
@@ -164,18 +173,28 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	wxBoxSizer* bSizer32;
 	bSizer32 = new wxBoxSizer( wxHORIZONTAL );
 	
+	BOTypeIn = new wxStaticBitmap( BOPanelContents, wxID_ANY, wxBitmap( wxT("#116"), wxBITMAP_TYPE_RESOURCE ), wxDefaultPosition, wxSize( 16,16 ), 0 );
+	bSizer32->Add( BOTypeIn, 0, wxALL, 7 );
+	
 	BOInText = new wxTextCtrl( BOPanelContents, wxID_ANY, wxT(".\\in"), wxDefaultPosition, wxDefaultSize, 0 );
+	BOInText->SetMaxLength( 0 ); 
 	bSizer32->Add( BOInText, 1, wxALL, 5 );
 	
 	BOInBrowse = new wxButton( BOPanelContents, wxID_ANY, wxT("Browse"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizer32->Add( BOInBrowse, 0, wxALL, 5 );
 	
+	
 	bSizer36->Add( bSizer32, 0, wxEXPAND, 5 );
 	
-	BOArchiveTree = new wxTreeCtrl( BOPanelContents, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTR_DEFAULT_STYLE|wxTR_SINGLE );
+	BOArchiveTree = new wxTreeListCtrl( BOPanelContents, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTR_DEFAULT_STYLE|wxTR_FULL_ROW_HIGHLIGHT|wxSIMPLE_BORDER );
 	BOArchiveTree->SetToolTip( wxT("The directories present under the given source") );
 	
-	bSizer36->Add( BOArchiveTree, 1, wxALL|wxEXPAND, 5 );
+	BOArchiveTree->AddColumn( wxT("Path"), 260, wxALIGN_LEFT, -1, true, false );
+	BOArchiveTree->AddColumn( wxT("Children"), 100, wxALIGN_RIGHT, -1, true, false );
+	BOArchiveTree->AddColumn( wxT("Size"), 100, wxALIGN_RIGHT, -1, true, false );
+	
+	bSizer36->Add( BOArchiveTree, 1, wxEXPAND | wxALL, 5 );
+	
 	
 	BOPanelContents->SetSizer( bSizer36 );
 	BOPanelContents->Layout();
@@ -197,6 +216,7 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	BOFilterApply = new wxButton( m_panel4, wxID_ANY, wxT("Apply"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizer10->Add( BOFilterApply, 0, wxALL, 5 );
 	
+	
 	bSizer13->Add( bSizer10, 0, wxEXPAND, 5 );
 	
 	wxBoxSizer* bSizer39;
@@ -204,8 +224,10 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	
 	BOPluginToolbar = new wxToolBar( m_panel4, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTB_HORIZONTAL ); 
 	BOPluginToolbar->AddTool( wxID_RESET, wxT("Reset"), wxBitmap( wxT("#112"), wxBITMAP_TYPE_RESOURCE ), wxNullBitmap, wxITEM_NORMAL, wxT("Selects all visible files"), wxEmptyString, NULL ); 
+	
 	BOPluginToolbar->AddTool( wxID_CLEAR, wxT("tool"), wxBitmap( wxT("#110"), wxBITMAP_TYPE_RESOURCE ), wxNullBitmap, wxITEM_NORMAL, wxT("Clears all visible files from the selection"), wxEmptyString, NULL ); 
-	BOPluginToolbar->Realize();
+	
+	BOPluginToolbar->Realize(); 
 	
 	bSizer39->Add( BOPluginToolbar, 0, wxEXPAND, 5 );
 	
@@ -214,11 +236,10 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	
 	bSizer39->Add( BORecursive, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 	
+	
 	bSizer13->Add( bSizer39, 0, wxEXPAND, 5 );
 	
-	wxString BOArchiveListChoices[] = { wxT("a.esp"), wxT("b.esp") };
-	int BOArchiveListNChoices = sizeof( BOArchiveListChoices ) / sizeof( wxString );
-	BOArchiveList = new wxCheckListBox( m_panel4, wxID_ANY, wxDefaultPosition, wxDefaultSize, BOArchiveListNChoices, BOArchiveListChoices, 0 );
+	BOArchiveList = new wxCheckedListCtrl( m_panel4, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT );
 	BOArchiveList->SetToolTip( wxT("The files in the currently selected directory") );
 	
 	bSizer13->Add( BOArchiveList, 1, wxALL|wxEXPAND, 5 );
@@ -235,11 +256,16 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	wxBoxSizer* bSizer321;
 	bSizer321 = new wxBoxSizer( wxHORIZONTAL );
 	
+	BOTypeOut = new wxStaticBitmap( m_panel4, wxID_ANY, wxBitmap( wxT("#116"), wxBITMAP_TYPE_RESOURCE ), wxDefaultPosition, wxSize( 16,16 ), 0 );
+	bSizer321->Add( BOTypeOut, 0, wxALL, 7 );
+	
 	BOOutText = new wxTextCtrl( m_panel4, wxID_ANY, wxT(".\\out"), wxDefaultPosition, wxDefaultSize, 0 );
+	BOOutText->SetMaxLength( 0 ); 
 	bSizer321->Add( BOOutText, 1, wxALL, 5 );
 	
 	BOOutBrowse = new wxButton( m_panel4, wxID_ANY, wxT("Browse"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizer321->Add( BOOutBrowse, 0, wxALL, 5 );
+	
 	
 	bSizer42->Add( bSizer321, 1, wxEXPAND, 5 );
 	
@@ -249,7 +275,9 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	
 	bSizer42->Add( BOConvert, 0, wxALL, 5 );
 	
+	
 	bSizer13->Add( bSizer42, 0, wxEXPAND, 5 );
+	
 	
 	m_panel4->SetSizer( bSizer13 );
 	m_panel4->Layout();
@@ -257,12 +285,14 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	m_splitter1->SplitHorizontally( BOPanelContents, m_panel4, 0 );
 	bSizer14->Add( m_splitter1, 1, wxEXPAND, 5 );
 	
+	
 	m_panel5->SetSizer( bSizer14 );
 	m_panel5->Layout();
 	bSizer14->Fit( m_panel5 );
 	m_notebook2->AddPage( m_panel5, wxT("Browser"), false );
 	
 	bSizer1->Add( m_notebook2, 1, wxEXPAND | wxALL, 0 );
+	
 	
 	this->SetSizer( bSizer1 );
 	this->Layout();
@@ -272,9 +302,12 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	
 	// Connect Events
 	this->Connect( BOAuto->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToAuto ) );
+	this->Connect( BOMorrowind->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToMorrowind ) );
 	this->Connect( BOOblivion->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToOblivion ) );
 	this->Connect( BOFallOut->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToFallout ) );
+	this->Connect( BOFallOutXB->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToFalloutXB ) );
 	this->Connect( BOSkyrim->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToSkyrim ) );
+	this->Connect( BOSkyrimXB->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToSkyrimXB ) );
 	this->Connect( BOForce->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeForceCompression ) );
 	this->Connect( BOSkipExisting->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipExisting ) );
 	this->Connect( BOSkipNewer->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipNewer ) );
@@ -287,14 +320,15 @@ wxBSAopt::wxBSAopt( wxWindow* parent, wxWindowID id, const wxString& title, cons
 	BOInText->Connect( wxEVT_KILL_FOCUS, wxFocusEventHandler( wxBSAopt::TypedInDone ), NULL, this );
 	BOInText->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedIn ), NULL, this );
 	BOInBrowse->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseIn ), NULL, this );
+	BOArchiveTree->Connect( wxEVT_LEFT_DCLICK, wxMouseEventHandler( wxBSAopt::DescentTreeItem ), NULL, this );
 	BOArchiveTree->Connect( wxEVT_COMMAND_TREE_ITEM_ACTIVATED, wxTreeEventHandler( wxBSAopt::ActivateTreeItem ), NULL, this );
+	BOArchiveTree->Connect( wxEVT_COMMAND_TREE_ITEM_MENU, wxTreeEventHandler( wxBSAopt::MenuTreeItem ), NULL, this );
 	BOArchiveTree->Connect( wxEVT_COMMAND_TREE_SEL_CHANGED, wxTreeEventHandler( wxBSAopt::ChangeTreeItem ), NULL, this );
 	BOFilter->Connect( wxEVT_COMMAND_COMBOBOX_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeFilter ), NULL, this );
 	BOFilterApply->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::ApplyFilter ), NULL, this );
 	this->Connect( wxID_RESET, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( wxBSAopt::ResetFileList ) );
 	this->Connect( wxID_CLEAR, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( wxBSAopt::ClearFileList ) );
 	BORecursive->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( wxBSAopt::ChangeRecursion ), NULL, this );
-	BOArchiveList->Connect( wxEVT_COMMAND_CHECKLISTBOX_TOGGLED, wxCommandEventHandler( wxBSAopt::ChangeSelectedFiles ), NULL, this );
 	BOOutText->Connect( wxEVT_KILL_FOCUS, wxFocusEventHandler( wxBSAopt::TypedOutDone ), NULL, this );
 	BOOutText->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedOut ), NULL, this );
 	BOOutBrowse->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseOut ), NULL, this );
@@ -305,9 +339,12 @@ wxBSAopt::~wxBSAopt()
 {
 	// Disconnect Events
 	this->Disconnect( wxID_AUTO, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToAuto ) );
+	this->Disconnect( wxID_MORROWIND, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToMorrowind ) );
 	this->Disconnect( wxID_OBLIVON, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToOblivion ) );
 	this->Disconnect( wxID_FALLOUT, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToFallout ) );
+	this->Disconnect( wxID_FALLOUTXB, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToFalloutXB ) );
 	this->Disconnect( wxID_SKYRIM, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToSkyrim ) );
+	this->Disconnect( wxID_SKYRIMXB, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeToSkyrimXB ) );
 	this->Disconnect( wxID_FORCE, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeForceCompression ) );
 	this->Disconnect( wxID_SKIPE, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipExisting ) );
 	this->Disconnect( wxID_SKIPN, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeSkipNewer ) );
@@ -320,14 +357,15 @@ wxBSAopt::~wxBSAopt()
 	BOInText->Disconnect( wxEVT_KILL_FOCUS, wxFocusEventHandler( wxBSAopt::TypedInDone ), NULL, this );
 	BOInText->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedIn ), NULL, this );
 	BOInBrowse->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseIn ), NULL, this );
+	BOArchiveTree->Disconnect( wxEVT_LEFT_DCLICK, wxMouseEventHandler( wxBSAopt::DescentTreeItem ), NULL, this );
 	BOArchiveTree->Disconnect( wxEVT_COMMAND_TREE_ITEM_ACTIVATED, wxTreeEventHandler( wxBSAopt::ActivateTreeItem ), NULL, this );
+	BOArchiveTree->Disconnect( wxEVT_COMMAND_TREE_ITEM_MENU, wxTreeEventHandler( wxBSAopt::MenuTreeItem ), NULL, this );
 	BOArchiveTree->Disconnect( wxEVT_COMMAND_TREE_SEL_CHANGED, wxTreeEventHandler( wxBSAopt::ChangeTreeItem ), NULL, this );
 	BOFilter->Disconnect( wxEVT_COMMAND_COMBOBOX_SELECTED, wxCommandEventHandler( wxBSAopt::ChangeFilter ), NULL, this );
 	BOFilterApply->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::ApplyFilter ), NULL, this );
 	this->Disconnect( wxID_RESET, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( wxBSAopt::ResetFileList ) );
 	this->Disconnect( wxID_CLEAR, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( wxBSAopt::ClearFileList ) );
 	BORecursive->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( wxBSAopt::ChangeRecursion ), NULL, this );
-	BOArchiveList->Disconnect( wxEVT_COMMAND_CHECKLISTBOX_TOGGLED, wxCommandEventHandler( wxBSAopt::ChangeSelectedFiles ), NULL, this );
 	BOOutText->Disconnect( wxEVT_KILL_FOCUS, wxFocusEventHandler( wxBSAopt::TypedOutDone ), NULL, this );
 	BOOutText->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( wxBSAopt::TypedOut ), NULL, this );
 	BOOutBrowse->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( wxBSAopt::BrowseOut ), NULL, this );
@@ -387,6 +425,7 @@ wxProgress::wxProgress( wxWindow* parent, wxWindowID id, const wxString& title, 
 	BOTotal->Wrap( -1 );
 	gSizer6->Add( BOTotal, 0, wxALIGN_RIGHT|wxALL, 1 );
 	
+	
 	bSizer26->Add( gSizer6, 0, wxALIGN_CENTER, 5 );
 	
 	m_staticline7 = new wxStaticLine( m_panel9, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
@@ -401,12 +440,15 @@ wxProgress::wxProgress( wxWindow* parent, wxWindowID id, const wxString& title, 
 	BOAbort = new wxButton( m_panel9, wxID_ANY, wxT("Cancel"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizer27->Add( BOAbort, 0, wxALL, 5 );
 	
+	
 	bSizer26->Add( bSizer27, 0, wxALIGN_CENTER, 5 );
+	
 	
 	m_panel9->SetSizer( bSizer26 );
 	m_panel9->Layout();
 	bSizer26->Fit( m_panel9 );
 	bSizer25->Add( m_panel9, 1, wxEXPAND | wxALL, 0 );
+	
 	
 	this->SetSizer( bSizer25 );
 	this->Layout();

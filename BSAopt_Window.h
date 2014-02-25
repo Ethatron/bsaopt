@@ -1,12 +1,16 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  4 2010)
+// C++ code generated with wxFormBuilder (version Oct  8 2012)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
-#ifndef __BSAopt_Window__
-#define __BSAopt_Window__
+#ifndef __BSAOPT_WINDOW_H__
+#define __BSAOPT_WINDOW_H__
+
+#include <wx/artprov.h>
+#include <wx/xrc/xmlres.h>
+class wxCheckedListCtrl;
 
 #include <wx/string.h>
 #include <wx/bitmap.h>
@@ -18,15 +22,20 @@
 #include <wx/colour.h>
 #include <wx/settings.h>
 #include <wx/filepicker.h>
+#include <wx/statbmp.h>
 #include <wx/textctrl.h>
 #include <wx/button.h>
 #include <wx/sizer.h>
-#include <wx/treectrl.h>
+#include <wx/treelistctrl/treelistctrl.h>
+#include <wx/checkedlistctrl/checkedlistctrl.h>
+#ifdef __VISUALC__
+#include <wx/link_additions.h>
+#endif //__VISUALC__
 #include <wx/panel.h>
 #include <wx/combobox.h>
 #include <wx/toolbar.h>
 #include <wx/checkbox.h>
-#include <wx/checklst.h>
+#include <wx/listctrl.h>
 #include <wx/splitter.h>
 #include <wx/notebook.h>
 #include <wx/statusbr.h>
@@ -39,29 +48,32 @@
 ///////////////////////////////////////////////////////////////////////////
 
 #define wxID_AUTO 1000
-#define wxID_OBLIVON 1001
-#define wxID_FALLOUT 1002
-#define wxID_SKYRIM 1003
-#define wxID_BOZ0 1004
-#define wxID_BOZ1 1005
-#define wxID_BOZ2 1006
-#define wxID_BOZ3 1007
-#define wxID_BOZ4 1008
-#define wxID_BOZ5 1009
-#define wxID_BOZ6 1010
-#define wxID_BOZ7 1011
-#define wxID_BOZ8 1012
-#define wxID_BOZ9 1013
-#define wxID_BOZ10Q 1014
-#define wxID_BOZ10T 1015
-#define wxID_FORCE 1016
-#define wxID_SKIPE 1017
-#define wxID_SKIPN 1018
-#define wxID_SKIPH 1019
-#define wxID_SKIPC 1020
-#define wxID_SKIPB 1021
-#define wxID_SKIPX 1022
-#define wxID_LOGF 1023
+#define wxID_MORROWIND 1001
+#define wxID_OBLIVON 1002
+#define wxID_FALLOUT 1003
+#define wxID_FALLOUTXB 1004
+#define wxID_SKYRIM 1005
+#define wxID_SKYRIMXB 1006
+#define wxID_BOZ0 1007
+#define wxID_BOZ1 1008
+#define wxID_BOZ2 1009
+#define wxID_BOZ3 1010
+#define wxID_BOZ4 1011
+#define wxID_BOZ5 1012
+#define wxID_BOZ6 1013
+#define wxID_BOZ7 1014
+#define wxID_BOZ8 1015
+#define wxID_BOZ9 1016
+#define wxID_BOZ10Q 1017
+#define wxID_BOZ10T 1018
+#define wxID_FORCE 1019
+#define wxID_SKIPE 1020
+#define wxID_SKIPN 1021
+#define wxID_SKIPH 1022
+#define wxID_SKIPC 1023
+#define wxID_SKIPB 1024
+#define wxID_SKIPX 1025
+#define wxID_LOGF 1026
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Class wxBSAopt
@@ -80,16 +92,18 @@ class wxBSAopt : public wxFrame
 		wxSplitterWindow* m_splitter1;
 		wxPanel* BOPanelContents;
 		wxDirPickerCtrl* BOInput;
+		wxStaticBitmap* BOTypeIn;
 		wxTextCtrl* BOInText;
 		wxButton* BOInBrowse;
-		wxTreeCtrl* BOArchiveTree;
+		wxTreeListCtrl* BOArchiveTree;
 		wxPanel* m_panel4;
 		wxComboBox* BOFilter;
 		wxButton* BOFilterApply;
 		wxToolBar* BOPluginToolbar;
 		wxCheckBox* BORecursive;
-		wxCheckListBox* BOArchiveList;
+		wxCheckedListCtrl* BOArchiveList;
 		wxFilePickerCtrl* BOOutput;
+		wxStaticBitmap* BOTypeOut;
 		wxTextCtrl* BOOutText;
 		wxButton* BOOutBrowse;
 		wxButton* BOConvert;
@@ -97,9 +111,12 @@ class wxBSAopt : public wxFrame
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void ChangeToAuto( wxCommandEvent& event ) { event.Skip(); }
+		virtual void ChangeToMorrowind( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeToOblivion( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeToFallout( wxCommandEvent& event ) { event.Skip(); }
+		virtual void ChangeToFalloutXB( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeToSkyrim( wxCommandEvent& event ) { event.Skip(); }
+		virtual void ChangeToSkyrimXB( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeForceCompression( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeSkipExisting( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeSkipNewer( wxCommandEvent& event ) { event.Skip(); }
@@ -112,14 +129,15 @@ class wxBSAopt : public wxFrame
 		virtual void TypedInDone( wxFocusEvent& event ) { event.Skip(); }
 		virtual void TypedIn( wxCommandEvent& event ) { event.Skip(); }
 		virtual void BrowseIn( wxCommandEvent& event ) { event.Skip(); }
+		virtual void DescentTreeItem( wxMouseEvent& event ) { event.Skip(); }
 		virtual void ActivateTreeItem( wxTreeEvent& event ) { event.Skip(); }
+		virtual void MenuTreeItem( wxTreeEvent& event ) { event.Skip(); }
 		virtual void ChangeTreeItem( wxTreeEvent& event ) { event.Skip(); }
 		virtual void ChangeFilter( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ApplyFilter( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ResetFileList( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ClearFileList( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ChangeRecursion( wxCommandEvent& event ) { event.Skip(); }
-		virtual void ChangeSelectedFiles( wxCommandEvent& event ) { event.Skip(); }
 		virtual void TypedOutDone( wxFocusEvent& event ) { event.Skip(); }
 		virtual void TypedOut( wxCommandEvent& event ) { event.Skip(); }
 		virtual void BrowseOut( wxCommandEvent& event ) { event.Skip(); }
@@ -177,4 +195,4 @@ class wxProgress : public wxDialog
 	
 };
 
-#endif //__BSAopt_Window__
+#endif //__BSAOPT_WINDOW_H__

@@ -59,27 +59,81 @@ using namespace std;
 #include <shlwapi.h>
 #include <knownfolders.h> // for KnownFolder APIs/datatypes/function headers
 
-/*
- * Find the first occurrence of find in s, ignore case.
- */
-char *stristr(const char *s, const char *find) {
-  char c, sc;
-  size_t len;
+#include <fcntl.h>
+#include <io.h>
 
-  if ((c = *find++) != 0) {
-    c = tolower((unsigned char)c);
-    len = strlen(find);
-    do {
-      do {
-	if ((sc = *s++) == 0)
-	  return (NULL);
-      } while ((char)tolower((unsigned char)sc) != c);
-    } while (strnicmp(s, find, len) != 0);
+// maximum mumber of lines the output console should have
+static const WORD MAX_CONSOLE_LINES = 500;
 
-    s--;
+bool IsInsideConsole() {
+  CONSOLE_SCREEN_BUFFER_INFO coninfo;
+
+  AttachConsole(ATTACH_PARENT_PROCESS);
+  if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &coninfo))
+    return false;
+
+  // if cursor position is (0,0) then we were launched in a separate console
+  return ((coninfo.dwCursorPosition.X) || (coninfo.dwCursorPosition.Y));
+}
+
+bool RedirectIOToConsole() {
+  int hConHandle;
+  long lStdHandle;
+  CONSOLE_SCREEN_BUFFER_INFO coninfo;
+  FILE *fp;
+  
+  // we are in a console already
+  if (IsInsideConsole())
+    AttachConsole(ATTACH_PARENT_PROCESS);
+  // allocate a console for this app
+  else
+    AllocConsole();
+
+  // set the screen buffer to be big enough to let us scroll text
+  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &coninfo);
+  
+  coninfo.dwSize.Y = MAX_CONSOLE_LINES;
+
+  SetConsoleScreenBufferSize(GetStdHandle(STD_OUTPUT_HANDLE), coninfo.dwSize);
+
+  // redirect unbuffered STDOUT to the console
+  lStdHandle = (long)GetStdHandle(STD_OUTPUT_HANDLE);
+  hConHandle = _open_osfhandle(lStdHandle, _O_TEXT);
+
+  if (hConHandle > 0) {
+    fp = _fdopen( hConHandle, "w" );
+    *stdout = *fp;
   }
 
-  return ((char *)s);
+  setvbuf( stdout, NULL, _IONBF, 0 );
+
+  // redirect unbuffered STDIN to the console
+  lStdHandle = (long)GetStdHandle(STD_INPUT_HANDLE);
+  hConHandle = _open_osfhandle(lStdHandle, _O_TEXT);
+
+  if (hConHandle > 0) {
+    fp = _fdopen( hConHandle, "r" );
+    *stdin = *fp;
+  }
+
+  setvbuf( stdin, NULL, _IONBF, 0 );
+
+  // redirect unbuffered STDERR to the console
+  lStdHandle = (long)GetStdHandle(STD_ERROR_HANDLE);
+  hConHandle = _open_osfhandle(lStdHandle, _O_TEXT);
+
+  if (hConHandle > 0) {
+    fp = _fdopen( hConHandle, "w" );
+    *stderr = *fp;
+  }
+
+  setvbuf(stderr, NULL, _IONBF, 0);
+
+  // make cout, wcout, cin, wcin, wcerr, cerr, wclog and clog
+  // point to console as well
+  ios::sync_with_stdio();
+
+  return true;
 }
 
 BOOL CreateDirectoryRecursive(const char *pathname) {
@@ -109,106 +163,88 @@ BOOL CreateDirectoryRecursive(const char *pathname) {
   return ret;
 }
 
-#define simulation  0
-bool skipexisting = false;
-bool skipnewer = false;
-bool skiphashcheck = false;
-bool skipbroken = false;
-bool processhidden = false;
-bool verbose = false;
-bool dropextras = true;
-bool optimizequick = false;
-
-map<string, string> duplicates;
-
-int virtualbsabytes = 0;
-int virtualbsafiles = 0;
-
-size_t compressedinbytes = 0;
-size_t compresseddtbytes = 0;
-size_t compressedoubytes = 0;
-
-size_t processedinbytes;
-size_t processedoubytes;
-
-#define nfoprintf(f, format, ...) { if (logfile) { fprintf(logfile, format, ## __VA_ARGS__); } }
-#define errprintf(f, format, ...) { if (logfile) { fprintf(logfile, format, ## __VA_ARGS__); } }
-
-FILE *logfile = NULL;
-void summary(FILE *out, const char *ou, int processedfiles) {
-  if (1) {
-    fprintf(out, "\n\nFinal report \"%s\":\n", ou);
-    fprintf(out, " processed files: %d\n", processedfiles);
-
-    if (processedoubytes || processedinbytes)
-      fprintf(out, " i/o delta: %d bytes\n", processedoubytes - processedinbytes);
-    if (compressedinbytes || compressedoubytes)
-      fprintf(out, " z delta: %d bytes\n", compressedoubytes - compressedinbytes);
-    if (virtualbsabytes || virtualbsafiles)
-      fprintf(out, " bsa virtuals: -%d bytes (%d files)\n", virtualbsabytes, virtualbsafiles);
-  }
-
-  if (1) {
-    if (duplicates.size() > 0) {
-      fprintf(out, "\nduplicate files:\n");
-      map<string, string>::iterator n;
-      for (n = duplicates.begin(); n != duplicates.end(); n++)
-	fprintf(out, "%s == %s\n", n->first.data(), n->second.data());
-    }
-  }
-
-  fflush(out);
-}
-
-void InitProgress(const char *patterna, const char *patternb, int dne, int rng);
-void SetProgress(const char *str, int dne);
-void SetProgress(size_t din, size_t dou);
-void SetTopic(const char *topic);
-void SetReport(const char *status, size_t din, size_t dou);
-void SetReport(const char *status, size_t din, size_t dou, int dpl);
-bool RequestFeedback(const char *question);
-
-#include "io/io.C"
-
-extern LPSTR selected_string;
-extern long AskInput(const char *presel);
-extern long AskOutput(const char *presel);
-
 // ----------------------------------------------------------------------------
 // headers
 // ----------------------------------------------------------------------------
 
-// For compilers that support precompilation, includes "wx/wx.h".
-//#include "wx/wxprec.h"
-
-#ifdef __BORLANDC__
-#pragma hdrstop
-#endif
-
-// for all others, include the necessary headers (this file is usually all you
-// need because it includes almost all "standard" wxWidgets headers)
-#ifndef WX_PRECOMP
-#include "wx/wx.h"
-#endif
-
-#include <msvc/wx/setup.h>
-
-#include <wx/propgrid/propgrid.h>
-#include <wx/filename.h>
-#include <wx/regex.h>
-#include <wx/fontutil.h>
-
-#pragma comment(lib,"Comctl32")
-#pragma comment(lib,"Rpcrt4")
-
-#include "BSAopt_Window.h"
-#define W7SUPPORT
-
-// ----------------------------------------------------------------------------
+#include "BSAopt.h"
 
 DWORD __stdcall ConversionStart(LPVOID lp);
 
+#ifdef XPSUPPORT
+// RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "0", 2);
+LONG RegSetKeyValue(
+  HKEY    hKey,
+  LPCSTR  lpSubKey,
+  LPCSTR  lpValueName,
+  DWORD   dwType,
+  LPCVOID lpData,
+  DWORD   cbData
+) {
+  LONG res;
+  if (lpSubKey) {
+    if ((res = RegCreateKey(
+      hKey,
+      lpSubKey,
+      &hKey
+    )) != ERROR_SUCCESS)
+      return res;
+  }
+
+  res = RegSetValueEx(
+    hKey,
+    lpValueName,
+    0,
+    dwType,
+    (const BYTE *)lpData,
+    cbData
+  );
+  
+  if (lpSubKey)
+    RegCloseKey(hKey);
+
+  return res;
+}
+
+LONG RegGetValue(
+  HKEY    hKey,
+  LPCSTR  lpSubKey,
+  LPCSTR  lpValue,
+  DWORD   dwFlags,
+  LPDWORD pdwType,
+  PVOID   pvData,
+  LPDWORD pcbData
+) {
+  LONG res;
+  if (lpSubKey) {
+    if ((res = RegOpenKey(
+      hKey,
+      lpSubKey,
+      &hKey
+    )) != ERROR_SUCCESS)
+      return res;
+  }
+
+  res = RegQueryValueEx(
+    hKey,
+    lpValue,
+    0,
+    pdwType,
+    (LPBYTE)pvData,
+    pcbData
+  );
+  
+  if (lpSubKey)
+    RegCloseKey(hKey);
+
+  return res;
+}
+#endif
+
 // ----------------------------------------------------------------------------
+// private classes
+// ----------------------------------------------------------------------------
+
 class ioio;
 class iost;
 typedef	map<string, ioio> iomap;
@@ -220,8 +256,8 @@ public:
 
   bool skip, selected;
 
-  struct ioinfo in; bool iex;
-  struct ioinfo ou; bool oex;
+  struct io::info in; bool iex;
+  struct io::info ou; bool oex;
 
 #if 0
   static bool compare(
@@ -235,10 +271,10 @@ public:
 
 class iost {
 public:
-  iost() { imsk = omsk /*= icnt = ocnt*/ = 0; }
+  iost() { imsk = omsk = 0; icnt = ocnt = 0; isze = osze = 0; }
 
-  int imsk; //int icnt;
-  int omsk; //int ocnt;
+  int imsk; size_t icnt; size_t isze;
+  int omsk; size_t ocnt; size_t osze;
 
 #if 0
   static bool compare(
@@ -638,6 +674,15 @@ public:
   }
 
   BSAoptPrg::~BSAoptPrg() {
+    Disconnect(wxID_ANY, evtLeave,
+      (wxObjectEventFunction)(wxEventFunction)(wxCommandEventFunction)wxStaticCastEvent(LeaveEventFunction, &BSAoptPrg::Leave),
+      NULL,
+      this);
+    Disconnect(wxID_ANY, evtProgress,
+      (wxObjectEventFunction)(wxEventFunction)(wxCommandEventFunction)wxStaticCastEvent(ProgressEventFunction, &BSAoptPrg::Progress),
+      NULL,
+      this);
+
     CloseHandle(evt);
     CloseHandle(end);
 
@@ -656,9 +701,11 @@ class BSAoptGUI : public wxBSAopt
   friend class BSAoptApp;
 
 public:
-  int iarchive, oarchive;
-  int iactives, oactives;
-  int iprogres, oprogres;
+  bool izip    , ozip    ;
+  bool iarchive, oarchive;
+  int  iversion, oversion;
+  int  iactives, oactives;
+  int  iprogres, oprogres;
   iomap fdirectory;
   stmap ddirectory;
   vector<iomap::iterator> ldirectory;
@@ -677,12 +724,22 @@ private:
   void ResetHButtons() {
     /* enable button */
     BOConvert->Enable(
-      (BOInText ->GetValue() != "") &&
-      (BOOutText->GetValue() != "")
+      (IPath[0] != '\0') &&
+      (OPath[0] != '\0')
     );
-
-    iarchive = isarchive(BOInText ->GetValue().data());
-    oarchive = isarchive(BOOutText->GetValue().data());
+    
+    try {
+      izip     = iszip    (IPath);
+      ozip     = iszip    (OPath);
+      iarchive = isarchive(IPath, &iversion);
+      oarchive = isarchive(OPath, &oversion);
+    }
+    catch(exception &e) {
+      if (strcmp(e.what(), "ExitThread")) {
+	wxMessageDialog d(this, e.what(), "BSAopt error");
+	d.ShowModal();
+      }
+    }
 
     /**/ if ( iarchive &&  oarchive)
       BOConvert->SetLabel("Convert");
@@ -692,11 +749,43 @@ private:
       BOConvert->SetLabel("Unpack");
     else if (!iarchive &&  oarchive)
       BOConvert->SetLabel("Pack");
+    
+    /**/ if (iarchive && (iversion == MW_BSAHEADER_VERSION))
+      BOTypeIn->SetBitmap(wxBitmap( wxT("#117"), wxBITMAP_TYPE_RESOURCE ));
+    else if (iarchive && (iversion == OB_BSAHEADER_VERSION))
+      BOTypeIn->SetBitmap(wxBitmap( wxT("#118"), wxBITMAP_TYPE_RESOURCE ));
+    else if (iarchive && (iversion == F3_BSAHEADER_VERSION) && (BOGame->FindChildItem(wxID_FALLOUT, NULL)->IsChecked() || BOGame->FindChildItem(wxID_FALLOUTXB, NULL)->IsChecked()))
+      BOTypeIn->SetBitmap(wxBitmap( wxT("#120"), wxBITMAP_TYPE_RESOURCE ));
+    else if (iarchive && (iversion == SK_BSAHEADER_VERSION) && (!BOGame->FindChildItem(wxID_FALLOUT, NULL)->IsChecked() && !BOGame->FindChildItem(wxID_FALLOUTXB, NULL)->IsChecked()))
+      BOTypeIn->SetBitmap(wxBitmap( wxT("#115"), wxBITMAP_TYPE_RESOURCE ));
+    else if (izip)
+      BOTypeIn->SetBitmap(wxBitmap( wxT("#120"), wxBITMAP_TYPE_RESOURCE ));
+    else
+      BOTypeIn->SetBitmap(wxBitmap( wxT("#116"), wxBITMAP_TYPE_RESOURCE ));
+    
+    /**/ if (oarchive && (oversion == MW_BSAHEADER_VERSION))
+      BOTypeOut->SetBitmap(wxBitmap( wxT("#117"), wxBITMAP_TYPE_RESOURCE ));
+    else if (oarchive && (oversion == OB_BSAHEADER_VERSION))
+      BOTypeOut->SetBitmap(wxBitmap( wxT("#118"), wxBITMAP_TYPE_RESOURCE ));
+    else if (oarchive && (oversion == F3_BSAHEADER_VERSION) && (BOGame->FindChildItem(wxID_FALLOUT, NULL)->IsChecked() || BOGame->FindChildItem(wxID_FALLOUTXB, NULL)->IsChecked()))
+      BOTypeOut->SetBitmap(wxBitmap( wxT("#120"), wxBITMAP_TYPE_RESOURCE ));
+    else if (oarchive && (oversion == SK_BSAHEADER_VERSION) && (!BOGame->FindChildItem(wxID_FALLOUT, NULL)->IsChecked() && !BOGame->FindChildItem(wxID_FALLOUTXB, NULL)->IsChecked()))
+      BOTypeOut->SetBitmap(wxBitmap( wxT("#115"), wxBITMAP_TYPE_RESOURCE ));
+    else if (ozip)
+      BOTypeOut->SetBitmap(wxBitmap( wxT("#120"), wxBITMAP_TYPE_RESOURCE ));
+    else
+      BOTypeOut->SetBitmap(wxBitmap( wxT("#116"), wxBITMAP_TYPE_RESOURCE ));
+
+    BOTypeIn->Refresh();
+    BOTypeOut->Refresh();
   }
 
   /* ---------------------------------------------------------------------------- */
   void ChangeToAuto(wxCommandEvent& event) {
     RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "0", 2);
+  }
+  void ChangeToMorrowind(wxCommandEvent& event) {
+    RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "4", 2);
   }
   void ChangeToOblivion(wxCommandEvent& event) {
     RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "1", 2);
@@ -704,8 +793,14 @@ private:
   void ChangeToFallout(wxCommandEvent& event) {
     RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "2", 2);
   }
+  void ChangeToFalloutXB(wxCommandEvent& event) {
+    RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "5", 2);
+  }
   void ChangeToSkyrim(wxCommandEvent& event) {
     RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "3", 2);
+  }
+  void ChangeToSkyrimXB(wxCommandEvent& event) {
+    RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "6", 2);
   }
 
   /* ---------------------------------------------------------------------------- */
@@ -770,7 +865,7 @@ private:
 	;
       }
 
-      if (BOArchiveTree->ItemHasChildren(item)) {
+      if (BOArchiveTree->HasChildren(item)) {
 	FilterDirectory(item, sFilterFor);
       }
 
@@ -790,7 +885,7 @@ private:
 //	BOArchiveTree->SelectItem(item);
       }
 
-      if (BOArchiveTree->ItemHasChildren(item)) {
+      if (BOArchiveTree->HasChildren(item)) {
 	RefreshDirectory(item, lvl + 1);
       }
 
@@ -824,21 +919,49 @@ private:
     return entry;
   }
 
+  wxString FormatSize(size_t size) {
+    static NUMBERFMT nfmt;
+    static char s[8], t[8];
+    static bool localed = false;
+
+    if (!localed) {
+      GetLocaleInfo(LOCALE_USER_DEFAULT, LOCALE_SDECIMAL, s, 8);
+      GetLocaleInfo(LOCALE_USER_DEFAULT, LOCALE_STHOUSAND, t, 8);
+    
+      nfmt.NumDigits = 0;
+      nfmt.LeadingZero = 0;
+      nfmt.Grouping = 3;
+      nfmt.lpDecimalSep = s;
+      nfmt.lpThousandSep = t;
+      nfmt.NegativeOrder = 0;
+    }
+
+    char number[64];
+    char thousands[64];
+    
+    sprintf(number, "%u", size);
+
+    GetNumberFormat(NULL/*LOCALE_NAME_USER_DEFAULT*/, 0, number, &nfmt, thousands, 64);
+
+//  return wxString::Format(wxT("%i"), size);
+    return wxString(thousands);
+  }
+
 #define OEX 1
 #define IEX 2
 #define CNT 4
-  int Scan(const char *name, const char *locl, const wxTreeItemId &parent, int lvl, bool o) {
+  int Scan(const char *name, const char *locl, const wxTreeItemId &parent, size_t &accus, size_t &accuc, int lvl, bool o) {
     size_t ilen = (name ? strlen(name) : 0);
     size_t llen = (locl ? strlen(locl) : 0);
+    string lut = locl; std::transform(lut.begin(), lut.end(), lut.begin(), ::tolower);
     int msk = 0;
 
-    struct ioinfo info;
-    if (!iostat(name, &info)) {
+    struct io::info info;
+    if (!io::stat(name, &info)) {
       /* input: directory */
       if (info.io_type & IO_DIRECTORY) {
 	const char *dle;
 	char tmp[256];
-	class iost *stat = &ddirectory[locl];
 
 	/* strip trailing slash */
 	if (!(dle = strrchr(name, '/')))
@@ -856,13 +979,15 @@ private:
 
 	/* the in and output directories are parallel-roots */
 	wxTreeItemId entry = (!lvl ? parent : ScanEntry(parent, locl, dle));
+	class iost *stat = &ddirectory[lut];
+	size_t size = 0, num = 0;
 
 	/* walk */
-	struct iodir *dir;
-	if ((dir = ioopendir(name))) {
-	  struct iodirent *et;
+	struct io::dir *dir;
+	if ((dir = io::opendir(name))) {
+	  struct io::dirent *et;
 
-	  while ((et = ioreaddir(dir))) {
+	  while ((et = io::readdir(dir))) {
 	    if (!strcmp(et->name, ".") ||
 		!strcmp(et->name, ".."))
 	      continue;
@@ -879,11 +1004,9 @@ private:
 	    strcat(nname, et->name);
 	    strcat(lname, et->name);
 
-	    strlwr(lname);
-
 	    /* recurse */
-	    int lmsk = Scan(nname, lname, entry, lvl + 1, o);
-
+	    int lmsk = Scan(nname, lname, entry, size, num, lvl + 1, o);
+	    
 	    /* break down the field */
 	    msk = ((lmsk & ~3) + (msk & ~3)) | (lmsk & 3) | (msk & 3);
 
@@ -891,7 +1014,7 @@ private:
 	    free(lname);
 	  }
 
-	  ioclosedir(dir);
+	  io::closedir(dir);
 
 	  /* register */
 	  if (o) stat->omsk = msk;
@@ -914,6 +1037,24 @@ private:
 	  sprintf(rerror, "Can't open the directory \"%s\"\n", name);
 	  throw runtime_error(rerror);
 	}
+	
+	accus += size;
+	accuc += num;
+
+	if (o) {
+	  stat->osze = stat->isze + size;
+	  stat->ocnt = stat->icnt + num;
+
+	  BOArchiveTree->SetItemText(entry, 1, wxString::Format(wxT("%i"), stat->ocnt));
+	  BOArchiveTree->SetItemText(entry, 2, FormatSize(stat->osze));
+	}
+	else {
+	  stat->isze = size;
+	  stat->icnt = num;
+
+	  BOArchiveTree->SetItemText(entry, 1, wxString::Format(wxT("%i"), stat->icnt));
+	  BOArchiveTree->SetItemText(entry, 2, FormatSize(stat->isze));
+	}
       }
       /* input: file */
       else {
@@ -931,8 +1072,8 @@ private:
 	if (stristr(fle, "thumbs.db"))
 	  return 0;
 
-	bool firsttime = (fdirectory.count(locl) == 0);
-	class ioio *nfo = &fdirectory[locl];
+	bool firsttime = (fdirectory.count(lut) == 0);
+	class ioio *nfo = &fdirectory[lut];
 	if (dropextras) {
 	  /* none of this stuff inside BSAs! */
 	  if (!o && oarchive && firsttime) {
@@ -953,12 +1094,18 @@ private:
 	  nfo->ou = info;
 
 	  oactives++;
+
+	  accus += nfo->ou.io_size - (nfo->iex ? nfo->in.io_size : 0);
+	  accuc += 1 - nfo->iex;
 	}
 	else {
 	  nfo->iex = true;
 	  nfo->in = info;
 
 	  iactives += (nfo->selected ? 1 : 0);
+
+	  accus += nfo->in.io_size;
+	  accuc += 1;
 	}
 
 	msk |= (nfo->oex ? OEX : 0) | (nfo->iex ? IEX : 0);
@@ -984,13 +1131,15 @@ private:
 
     wxBusyCursor busy;
     wxTreeItemId root;
-
-    iarchive = isarchive(BOInText ->GetValue().data());
-    oarchive = isarchive(BOOutText->GetValue().data());
+    
+    izip     = iszip    (BOInText ->GetValue().data());
+    ozip     = iszip    (BOOutText->GetValue().data());
+    iarchive = isarchive(BOInText ->GetValue().data(), &iversion);
+    oarchive = isarchive(BOOutText->GetValue().data(), &oversion);
 
     if (!io) {
       iactives =
-	oactives = 0;
+      oactives = 0;
 
       ddirectory.clear();
       fdirectory.clear();
@@ -1074,20 +1223,26 @@ private:
       }
     }
 
-    BOArchiveList->Clear();
-    BOArchiveTree->DeleteAllItems(); root =
+    BOArchiveList->DeleteAllItems();
+    BOArchiveTree->DeleteRoot(); root =
     BOArchiveTree->AddRoot("\\");
 
     try {
+      size_t size = 0, num = 0;
+
 //    if (!io || (io == 1)) {
 	BOStatusBar->SetStatusText(wxT("Skimming input ..."), 0);
-	Scan(BOInText->GetValue().data(), "", root, 0, false);
+	Scan(BOInText->GetValue().data(), "", root, size, num, 0, false);
 //    }
 
 //    if (!io || (io == 2)) {
 	BOStatusBar->SetStatusText(wxT("Skimming output ..."), 0);
-	Scan(BOOutText->GetValue().data(), "", root, 0, true);
+	Scan(BOOutText->GetValue().data(), "", root, size, num, 0, true);
 //    }
+
+      BOArchiveTree->SetItemText(root, 1, wxString::Format(wxT("%i"), num));
+      BOArchiveTree->SetItemText(root, 2, FormatSize(size));
+      BOArchiveTree->SortChildren(root);
     }
     catch(exception &e) {
       if (strcmp(e.what(), "ExitThread")) {
@@ -1100,7 +1255,10 @@ private:
 
     /* preselect root (will trigger ChangedItem()) */
     BOArchiveTree->Expand(root);
-    BOArchiveTree->SelectItem(root, true);
+    BOArchiveTree->SelectItem(root);
+
+    /* refresh file-list to preselected root */
+    ChangeTreeItem(currentpath = "");
 
     BOStatusBar->SetStatusText(wxT("Ready"), 0);
   }
@@ -1124,21 +1282,21 @@ private:
       RegSetKeyValue(Settings, NULL, "Filter", RRF_RT_REG_SZ, spat.data(), (DWORD)spat.length() + 1);
 
     /* refresh file-list */
-    ChangeTreeItem(currentpath.data());
+    ChangeTreeItem(currentpath);
   }
 
   void ResetFileList(wxCommandEvent& event) {
 //  ResetCFileList();
 
     /* refresh file-list */
-    ChangeTreeItem(currentpath.data(), 1);
+    ChangeTreeItem(currentpath, 1);
   }
 
   void ClearFileList(wxCommandEvent& event) {
 //  ClearCFileList();
 
     /* refresh file-list */
-    ChangeTreeItem(currentpath.data(), 2);
+    ChangeTreeItem(currentpath, 2);
   }
 
   void LoadFileList(wxCommandEvent& event) {
@@ -1153,21 +1311,21 @@ private:
     RegSetKeyValue(Settings, "Skip", "Existing", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
 
     /* refresh file-list */
-    ChangeTreeItem(currentpath.data());
+    ChangeTreeItem(currentpath);
   }
 
   void ChangeSkipNewer(wxCommandEvent& event) {
     RegSetKeyValue(Settings, "Skip", "Newer", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
 
     /* refresh file-list */
-    ChangeTreeItem(currentpath.data());
+    ChangeTreeItem(currentpath);
   }
 
   void ChangeSkipHidden(wxCommandEvent& event) {
     RegSetKeyValue(Settings, "Skip", "Hidden", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
 
     /* refresh file-list */
-    ChangeTreeItem(currentpath.data());
+    ChangeTreeItem(currentpath);
   }
 
   void ChangeSkipHash(wxCommandEvent& event) {
@@ -1190,19 +1348,63 @@ private:
     RegSetKeyValue(Settings, NULL, "Show Recursive", RRF_RT_REG_SZ, event.IsChecked() ? "1" : "0", 2);
 
     /* refresh file-list */
-    ChangeTreeItem(currentpath.data());
+    ChangeTreeItem(currentpath);
+  }
+  
+#define wxID_IN	  1001
+#define wxID_OUT  1002
+#define wxID_BOTH 1003
+  void ChangeTreeItemRoot(wxCommandEvent& event) {
+    ioTreeItemData *iod = (mitem.IsOk() ? (ioTreeItemData *)BOArchiveTree->GetItemData(mitem) : NULL);
+    
+    if ((event.GetId() == wxID_IN) || (event.GetId() == wxID_BOTH)) {
+      string fullipath = IPath; fullipath += iod->fullpath;
+
+      BOInText->SetValue(fullipath);
+
+      BrowseIn(fullipath);
+    }
+    
+    if ((event.GetId() == wxID_OUT) || (event.GetId() == wxID_BOTH)) {
+      string fullopath = OPath; fullopath += iod->fullpath;
+
+      BOOutText->SetValue(fullopath);
+
+      BrowseOut(fullopath);
+    }
+  }
+
+  wxTreeItemId mitem;
+  void MenuTreeItem(wxTreeEvent& event) {
+    mitem = event.GetItem();
+
+    ioTreeItemData *iod = (mitem.IsOk() ? (ioTreeItemData *)BOArchiveTree->GetItemData(mitem) : NULL);
+    if (iod && (iod->fullpath != "")) {
+      iost node = ddirectory[iod->fullpath];
+
+      menu->Enable(wxID_BOTH, node.icnt && node.ocnt);
+      menu->Enable(wxID_IN, node.icnt != 0);
+      menu->Enable(wxID_OUT, node.ocnt != 0);
+	
+      // and then display
+      PopupMenu(menu);
+    }
   }
 
   void ChangeTreeItem(wxTreeEvent& event) {
     wxTreeItemId item = event.GetItem();
-    ioTreeItemData *iod = (ioTreeItemData *)BOArchiveTree->GetItemData(item);
-    currentpath = (iod ? iod->fullpath : "");
+    ioTreeItemData *iod = (item.IsOk() ? (ioTreeItemData *)BOArchiveTree->GetItemData(item) : NULL);
+    string updatedpath = (iod ? iod->fullpath : "");
+
+    if (currentpath == updatedpath)
+      return;
+    currentpath = updatedpath;
 
     /* refresh file-list */
-    ChangeTreeItem(currentpath.data());
+    ChangeTreeItem(currentpath);
   }
 
-  void ChangeTreeItem(const char *basedir, int op = 0) {
+  void ChangeTreeItem(string &basedir, int op = 0) {
     wxBusyCursor wait;
 //  BOStatusBar->SetStatusText(wxT("Running ..."), 0);
 
@@ -1246,7 +1448,7 @@ private:
     skipbroken    = BOSettings->FindChildItem(wxID_SKIPB, NULL)->IsChecked();
     processhidden = BOSettings->FindChildItem(wxID_SKIPH, NULL)->IsChecked();
 
-    BOArchiveList->Clear();
+    BOArchiveList->DeleteAllItems(); int listcursor = 0;
 /*  If we don't want root selectable do this: if (!basedir[0]) return; */
 
     BOStatusBar->SetStatusText(wxT("Refreshing file-list ..."), 0);
@@ -1255,8 +1457,8 @@ private:
     while (walk != fdirectory.end()) {
       const char *fname = walk->first.data();
 
-      if ((fname == stristr(fname, basedir))) {
-	const char *fbase = fname + strlen(basedir) + 1;
+      if ((fname == stristr(fname, basedir.data()))) {
+	const char *fbase = fname + basedir.size() + 1;
 	/* prevent matching similarly named subdirectories */
 	if (fbase[-1] == '\\')
 
@@ -1276,10 +1478,8 @@ private:
 
 	  /* add the item */
 	  int n =
-	  BOArchiveList->Append(fbase);
+	  BOArchiveList->InsertItem(listcursor++, fbase);
 	  BOArchiveList->Check(n, walk->second.selected && walk->second.iex);
-	  wxOwnerDrawn *id =
-	  BOArchiveList->GetItem(n);
 
 	  /* client-data substitute */
 	  if (n >= ldirectory.size())
@@ -1287,7 +1487,7 @@ private:
 	  ldirectory[n] = walk;
 
 	  /* mark destination-only */
-	  id->SetCheckable(walk->second.iex);
+	  BOArchiveList->Enable(n, walk->second.iex);
 
 	  wxColour col(0, 0, 0, 255);
 	  if (!walk->second.iex)
@@ -1299,21 +1499,27 @@ private:
 	  if ((walk->second.iex && walk->second.oex) && (skipexisting || (skipnewer &&
 	       (walk->second.in.io_time <= walk->second.ou.io_time)))) {
 	    if (walk->second.in.io_size != walk->second.in.io_raws)
-	      id->SetFont(jtr);
+	      BOArchiveList->SetItemFont(n, jtr);
 	    else
-	      id->SetFont(str);
+	      BOArchiveList->SetItemFont(n, str);
+	    
+	    BOArchiveList->SetItem(n, 1, FormatSize(walk->second.in.io_size) + " ");
 	  }
 	  /* mark compressed */
 	  else if (walk->second.iex) {
 	    if (walk->second.in.io_size != walk->second.in.io_raws)
-	      id->SetFont(itr);
+	      BOArchiveList->SetItemFont(n, itr);
+
+	    BOArchiveList->SetItem(n, 1, FormatSize(walk->second.in.io_size) + " ");
 	  }
 	  else if (walk->second.oex) {
 	    if (walk->second.ou.io_size != walk->second.ou.io_raws)
-	      id->SetFont(itr);
+	      BOArchiveList->SetItemFont(n, itr);
+
+	    BOArchiveList->SetItem(n, 1, FormatSize(walk->second.ou.io_size) + " ");
 	  }
 
-	  id->SetTextColour(col);
+	  BOArchiveList->SetItemTextColour(n, col);
 	}
       }
 
@@ -1323,8 +1529,8 @@ private:
     BOStatusBar->SetStatusText(wxT("Ready"), 0);
   }
 
-  void ChangeSelectedFiles(wxCommandEvent& event) {
-    int n = event.GetSelection();
+  virtual void ChangeSelectedFiles(wxListEvent& event) {
+    int n = event.GetIndex();
     iomap::iterator f = ldirectory[n];
     /* event.IsChecked() doesn't work here */
     bool selected = BOArchiveList->IsChecked(n);
@@ -1336,7 +1542,7 @@ private:
 
     f->second.selected = selected;
   }
-
+  
   /* ---------------------------------------------------------------------------- */
   void TypedIn(wxCommandEvent& event) { return;
     wxString ph = event.GetString();
@@ -1345,7 +1551,7 @@ private:
     if (ph.IsNull())
       return;
     /* does it exist? */
-    if (iosize(ph.data()) == -1)
+    if (io::size(ph.data()) == -1)
       return;
 
     BrowseIn(ph);
@@ -1357,7 +1563,7 @@ private:
     if (ph.IsNull())
       return;
     /* does it exist? */
-    if (iosize(ph.data()) == -1)
+    if (io::size(ph.data()) == -1)
       return;
 
     if (stricmp(IPath, ph.data()))
@@ -1371,11 +1577,10 @@ private:
       return;
 
     wxString ph = selected_string;
+    if (ph.IsNull())
+      return;
+
     BOInText->SetValue(ph);
-
-    if (!ph.IsNull()) {
-    }
-
     BrowseIn(ph);
   }
 
@@ -1424,11 +1629,10 @@ private:
       return;
 
     wxString ph = selected_string;
+    if (ph.IsNull())
+      return;
+
     BOOutText->SetValue(ph);
-
-    if (!ph.IsNull()) {
-    }
-
     BrowseOut(ph);
   }
 
@@ -1461,7 +1665,7 @@ private:
     delete prog;
 
     /* wait for the asynchronous processes ... */
-    ioflush();
+    io::flush();
     free_arc();
 
     BOStatusBar->SetStatusText(wxT("Ready"), 0);
@@ -1478,38 +1682,39 @@ public:
     size_t ilen = (inname ? strlen(inname) : 0);
     size_t olen = (ouname ? strlen(ouname) : ilen);
     size_t llen = (lcname ? strlen(lcname) : 0);
+    string lut = lcname; std::transform(lut.begin(), lut.end(), lut.begin(), ::tolower);
 
     bool rm = false;
-    struct ioinfo iinfo, oinfo;
-    if (!iostat(inname, &iinfo)) {
+    struct io::info iinfo, oinfo;
+    if (!io::stat(inname, &iinfo)) {
       /* input: directory */
       if (iinfo.io_type & IO_DIRECTORY) {
 	/* don't create output in simulation-mode */
-	if (ouname && !simulation && iostat(ouname, &oinfo)) {
+	if (ouname && !simulation && io::stat(ouname, &oinfo)) {
 	  rm = true;
 
-	  if (iomkdir(ouname)) {
+	  if (io::mkdir(ouname)) {
 	    sprintf(rerror, "Can't create the directory \"%s\"\n", ouname);
 	    throw runtime_error(rerror);
 	  }
 
-	  if (iostat(ouname, &oinfo)) {
+	  if (io::stat(ouname, &oinfo)) {
 	    sprintf(rerror, "Can't find the directory \"%s\"\n", ouname);
 	    throw runtime_error(rerror);
 	  }
 	}
 
 	if ((oinfo.io_type & IO_DIRECTORY) || simulation) {
-	  struct iodir *dir;
+	  struct io::dir *dir;
 
 	  /* no BSAs inside BSAs! */
 	  if (oarchive && isext(lcname, "bsa"))
 	    return;
 
-	  if ((dir = ioopendir(inname))) {
-	    struct iodirent *et;
+	  if ((dir = io::opendir(inname))) {
+	    struct io::dirent *et;
 
-	    while ((et = ioreaddir(dir))) {
+	    while ((et = io::readdir(dir))) {
 	      if (!strcmp(et->name, ".") ||
 		  !strcmp(et->name, ".."))
 		continue;
@@ -1530,8 +1735,6 @@ public:
 	      strcat(nouname, et->name);
 	      strcat(nlcname, et->name);
 
-	      strlwr(nlcname);
-
 	      Process(ninname, nouname, nlcname);
 
 	      free(ninname);
@@ -1539,14 +1742,14 @@ public:
 	      free(nlcname);
 	    }
 
-	    ioclosedir(dir);
+	    io::closedir(dir);
 
 	    /* don't create output in simulation-mode */
-	    if (ouname && !simulation && (dir = ioopendir(ouname))) {
-	      struct iodirent *et;
+	    if (ouname && !simulation && (dir = io::opendir(ouname))) {
+	      struct io::dirent *et;
 	      int num = 0;
 
-	      while ((et = ioreaddir(dir))) {
+	      while ((et = io::readdir(dir))) {
 		if (!strcmp(et->name, ".") ||
 		    !strcmp(et->name, ".."))
 		  continue;
@@ -1561,10 +1764,10 @@ public:
 		num++;
 	      }
 
-	      ioclosedir(dir);
+	      io::closedir(dir);
 
 	      if (!num && rm)
-		iormdir(ouname);
+		io::rmdir(ouname);
 	    }
 	  }
 	  else {
@@ -1580,7 +1783,7 @@ public:
       /* input: file */
       else {
 	const char *fle;
-	struct iodir *dir;
+	struct io::dir *dir;
 	bool dealloc = false;
 	bool docopy = true;
 	bool iszero = !iinfo.io_size;
@@ -1595,7 +1798,7 @@ public:
 	  return;
 
 	/* skip unselected ones (iactive is altered by the selection) */
-	if (!fdirectory[lcname].selected)
+	if (!fdirectory[lut].selected)
 	  return;
 
 	if (!docopy)
@@ -1604,14 +1807,14 @@ public:
 	  prog->SetProgress(lcname, iprogres++);
 
 	/* if there is no destination, clone the source */
-	if (ouname && !iostat(ouname, &oinfo)) {
+	if (ouname && !io::stat(ouname, &oinfo)) {
 	  if (oinfo.io_type & IO_DIRECTORY) {
 	    char *nouname = (char *)malloc(olen + 1 + strlen(fle) + 1);
 
 	    /* if we push a single specific file into a BSA
 	     * we have to open/close it to flush the BSA to disk
 	     */
-	    dir = ioopendir(ouname);
+	    dir = io::opendir(ouname);
 
 	    strcpy(nouname, ouname);
 	    strcat(nouname, "\\");
@@ -1636,7 +1839,7 @@ public:
 	    /* TODO: nowait asynchronous */
 	    while (1) {
 	      try {
-		iocp(inname, ouname);
+		io::cp(inname, ouname);
 	      }
 	      catch(exception &e) {
 		if (strcmp(e.what(), "ExitThread")) {
@@ -1673,7 +1876,7 @@ public:
 	}
 
 	if (dealloc) {
-	  ioclosedir(dir);
+	  io::closedir(dir);
 	  free((void *)ouname);
 	}
       }
@@ -1690,49 +1893,58 @@ public:
     verbose = true;
 
     gameversion = -1;
-    /**/ if (BOGame->FindChildItem(wxID_OBLIVON, NULL)->IsChecked())
+    /**/ if (BOGame->FindChildItem(wxID_MORROWIND, NULL)->IsChecked())
+      gameversion = MW_BSAHEADER_VERSION, RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "4", 2);
+    else if (BOGame->FindChildItem(wxID_OBLIVON, NULL)->IsChecked())
       gameversion = OB_BSAHEADER_VERSION, RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "1", 2);
     else if (BOGame->FindChildItem(wxID_FALLOUT, NULL)->IsChecked())
       gameversion = F3_BSAHEADER_VERSION, RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "2", 2);
-    else if (BOGame->FindChildItem(wxID_SKYRIM , NULL)->IsChecked())
+    else if (BOGame->FindChildItem(wxID_FALLOUTXB, NULL)->IsChecked())
+      gameversion = FX_BSAHEADER_VERSION, RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "5", 2);
+    else if (BOGame->FindChildItem(wxID_SKYRIM, NULL)->IsChecked())
       gameversion = SK_BSAHEADER_VERSION, RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "3", 2);
+    else if (BOGame->FindChildItem(wxID_SKYRIMXB , NULL)->IsChecked())
+      gameversion = SX_BSAHEADER_VERSION, RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "6", 2);
     else
 					  RegSetKeyValue(Settings, NULL, "Game", RRF_RT_REG_SZ, "0", 2);
 
     srchbestbsa = false;
     thresholdbsa = true;
     /**/ if (BOCompression->FindChildItem(wxID_BOZ0, NULL)->IsChecked())
-      compresslevel = 0;
+      compresslevel = 0, compressbsa = false;
     else if (BOCompression->FindChildItem(wxID_BOZ1, NULL)->IsChecked())
-      compresslevel = 1;
+      compresslevel = 1, compressbsa = true;
     else if (BOCompression->FindChildItem(wxID_BOZ2, NULL)->IsChecked())
-      compresslevel = 2;
+      compresslevel = 2, compressbsa = true;
     else if (BOCompression->FindChildItem(wxID_BOZ3, NULL)->IsChecked())
-      compresslevel = 3;
+      compresslevel = 3, compressbsa = true;
     else if (BOCompression->FindChildItem(wxID_BOZ4, NULL)->IsChecked())
-      compresslevel = 4;
+      compresslevel = 4, compressbsa = true;
     else if (BOCompression->FindChildItem(wxID_BOZ5, NULL)->IsChecked())
-      compresslevel = 5;
+      compresslevel = 5, compressbsa = true;
     else if (BOCompression->FindChildItem(wxID_BOZ6, NULL)->IsChecked())
-      compresslevel = 6;
+      compresslevel = 6, compressbsa = true;
     else if (BOCompression->FindChildItem(wxID_BOZ7, NULL)->IsChecked())
-      compresslevel = 7;
+      compresslevel = 7, compressbsa = true;
     else if (BOCompression->FindChildItem(wxID_BOZ8, NULL)->IsChecked())
-      compresslevel = 8;
+      compresslevel = 8, compressbsa = true;
     else if (BOCompression->FindChildItem(wxID_BOZ9, NULL)->IsChecked())
-      compresslevel = 9;
+      compresslevel = 9, compressbsa = true;
     else if (BOCompression->FindChildItem(wxID_BOZ10Q, NULL)->IsChecked())
-      compresslevel = 9, srchbestbsa = true, optimizequick = true;
+      compresslevel = 9, compressbsa = true, srchbestbsa = true, optimizequick = true;
     else if (BOCompression->FindChildItem(wxID_BOZ10T, NULL)->IsChecked())
-      compresslevel = 9, srchbestbsa = true, optimizequick = false;
+      compresslevel = 9, compressbsa = true, srchbestbsa = true, optimizequick = false;
     /**/ if (BOCompression->FindChildItem(wxID_FORCE , NULL)->IsChecked())
       thresholdbsa = false;
-
+    
     char cl[] = "0"; cl[0] = '0' + compresslevel;
     RegSetKeyValue(Settings, "Compression", "Level", RRF_RT_REG_SZ, cl, 2);
     RegSetKeyValue(Settings, "Compression", "Search", RRF_RT_REG_SZ, srchbestbsa ? "1" : "0", 2);
     RegSetKeyValue(Settings, "Compression", "Quick", RRF_RT_REG_SZ, optimizequick ? "1" : "0", 2);
     RegSetKeyValue(Settings, "Compression", "Force", RRF_RT_REG_SZ, thresholdbsa ? "0" : "1", 2);
+    
+    if (gameversion == MW_BSAHEADER_VERSION)
+      compressbsa = false;
 
     virtualbsabytes = 0;
     virtualbsafiles = 0;
@@ -1810,15 +2022,34 @@ public:
 
     if (in) BOInText->SetValue(in);
     if (ou) BOOutText->SetValue(ou);
+    
+    if (in) strcpy(IPath, in);
+    if (ou) strcpy(OPath, ou);
 
     warmup = false;
 
     ResetHButtons();
   }
 
-public:
+public:	
+  wxMenu *menu;
+
   BSAoptGUI::BSAoptGUI(const wxString& title)
     : wxBSAopt(NULL, wxID_ANY, title) {
+
+    menu = new wxMenu();
+    menu->SetInvokingWindow(this);
+    menu->Append(wxID_BOTH, wxT("Make root of both"), wxT(""));
+    menu->Append(wxID_IN, wxT("Make root of input"), wxT(""));
+    menu->Append(wxID_OUT, wxT("Make root of output"), wxT(""));
+    menu->Connect(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(BSAoptGUI::ChangeTreeItemRoot), NULL, this);
+
+    BOArchiveTree->SetIndent(BOArchiveTree->GetIndent() * 2);
+    BOArchiveList->Connect(wxEVT_COMMAND_LIST_ITEM_CHECKED, wxListEventHandler(BSAoptGUI::ChangeSelectedFiles), NULL, this);
+    BOArchiveList->Connect(wxEVT_COMMAND_LIST_ITEM_UNCHECKED, wxListEventHandler(BSAoptGUI::ChangeSelectedFiles), NULL, this);
+    BOArchiveList->InsertColumn( 0, wxT("File"), wxLIST_FORMAT_LEFT, 360 );
+    BOArchiveList->InsertColumn( 1, wxT("Size"), wxLIST_FORMAT_RIGHT, 100 );
+
     gui = this;
     warmup = true;
 
@@ -1876,10 +2107,13 @@ public:
     if (TS[0]) BORecursive->SetValue(TS[0] == '1'); TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, NULL, "Game", RRF_RT_REG_SZ, NULL, TS, &TSL);
     switch (TS[0]) {
-      case '0': BOGame->FindChildItem(wxID_AUTO   , NULL)->Check(true); break;
-      case '1': BOGame->FindChildItem(wxID_OBLIVON, NULL)->Check(true); break;
-      case '2': BOGame->FindChildItem(wxID_FALLOUT, NULL)->Check(true); break;
-      case '3': BOGame->FindChildItem(wxID_SKYRIM , NULL)->Check(true); break;
+      case '0': BOGame->FindChildItem(wxID_AUTO     , NULL)->Check(true); break;
+      case '1': BOGame->FindChildItem(wxID_OBLIVON  , NULL)->Check(true); break;
+      case '2': BOGame->FindChildItem(wxID_FALLOUT  , NULL)->Check(true); break;
+      case '3': BOGame->FindChildItem(wxID_SKYRIM   , NULL)->Check(true); break;
+      case '4': BOGame->FindChildItem(wxID_MORROWIND, NULL)->Check(true); break;
+      case '5': BOGame->FindChildItem(wxID_FALLOUTXB, NULL)->Check(true); break;
+      case '6': BOGame->FindChildItem(wxID_SKYRIMXB , NULL)->Check(true); break;
     } TSL = 1023;
     TS[0] = 0; RegGetValue(Settings, "Compression", "Force", RRF_RT_REG_SZ, NULL, TS, &TSL);
     if (TS[0]) BOCompression->FindChildItem(wxID_FORCE, NULL)->Check(TS[0] == '1'); TSL = 1023;
@@ -1995,41 +2229,60 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance,
     // argv[] must be NULL-terminated
     argc = (int)argv.size();
     argv.push_back(NULL);
+    
+    bool isconsole = IsInsideConsole();
+    if ((argc >= 1) && parseCommandline(argc, &argv[0], isconsole)) {
+      RedirectIOToConsole();
 
-    if (argc > 1) {
-      cmdIn = argv[1];
-
-      /* we want absolute directories */
-      if ((cmdIn[1] != ':') &&
-	  (cmdIn[1] != '\\')) {
-	cmdIn = (char *)malloc(strlen(CPath) + 1 + strlen(argv[1]) + 1);
-
-	strcpy(cmdIn, CPath);
-	strcat(cmdIn, "\\");
-	strcat(cmdIn, argv[1]);
+      ret = main(argc, &argv[0]);
+      
+      if (!isconsole) {
+	char key;
+	cerr << "\n";
+	cerr << "Press enter to close the window ...";
+	cin.get(key);
       }
     }
+    else {
+      if (infile) {
+	cmdIn = infile;
 
-    if (argc > 2) {
-      cmdOu = argv[2];
+	/* we want absolute directories */
+	if ((cmdIn[0] != '-') &&
+	    (cmdIn[1] != ':') &&
+	    (cmdIn[1] != '\\')) {
+	  cmdIn = (char *)malloc(strlen(CPath) + 1 + strlen(infile) + 1);
 
-      /* we want absolute directories */
-      if ((cmdOu[1] != ':') &&
-	  (cmdOu[1] != '\\')) {
-	cmdIn = (char *)malloc(strlen(CPath) + 1 + strlen(argv[2]) + 1);
-
-	strcpy(cmdOu, CPath);
-	strcat(cmdOu, "\\");
-	strcat(cmdOu, argv[1]);
+	  strcpy(cmdIn, CPath);
+	  strcat(cmdIn, "\\");
+	  strcat(cmdIn, infile);
+	}
       }
-    }
 
-    {
-      ioinit();
+      if (outfile) {
+	cmdOu = outfile;
+
+	/* we want absolute directories */
+	if ((cmdOu[0] != '-') &&
+	    (cmdOu[1] != ':') &&
+	    (cmdOu[1] != '\\')) {
+	  cmdOu = (char *)malloc(strlen(CPath) + 1 + strlen(outfile) + 1);
+
+	  strcpy(cmdOu, CPath);
+	  strcat(cmdOu, "\\");
+	  strcat(cmdOu, outfile);
+	}
+      }
+
+#ifdef _DEBUG
+      RedirectIOToConsole();
+#endif
+
+      io::init();
 
       ret = wxEntry(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
 
-      ioexit();
+      io::exit();
     }
 
     if ((argc > 1) && (cmdIn != argv[1]))
